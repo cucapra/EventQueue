@@ -17,11 +17,17 @@ include "mlir/IR/OpBase.td"
 
 def EQueue_Dialect : Dialect {
     let name = "equeue";
-    let summary = "A equeue out-of-tree MLIR dialect.";
+    let summary = "Equeue queue MLIR dialect.";
     let description = [{
-        This dialect is an example of an out-of-tree MLIR dialect designed to
-        illustrate the basic setup required to develop MLIR-based tools without
-        working inside of the LLVM source tree.
+        This dialect is designed to provide middle-level abstractions for launching 
+        concurrent kernel devices. It provides abstractions for device invocations 
+        on memories and kernels, allowing flexible device hierarchy and clear data 
+        flow.
+        Its goal is to bridge the gap between low-level hardware model and high-level 
+        abstraction where no hardware information is given, thus facilitating custom 
+        lowering among different design choices. It may be targeted, for example, 
+        by DSLs using MLIR. 
+        The dialect uses `equeue` as its canonical prefix.
     }];
     let cppNamespace = "equeue";
 }

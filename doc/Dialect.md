@@ -294,7 +294,7 @@ in (%start, %core_device) : tensor<5xf32>
 
 #### `equeue.memcpy`(equeue::MemCopyOp)
 
-Represents copies value from one buffer to the other.
+Represents copying value from one buffer to the other.
 
 Returns a signal representing a event is finished, whose type is `::equeue::SignalType`. 
 

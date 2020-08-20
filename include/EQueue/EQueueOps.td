@@ -43,36 +43,35 @@ def EQueue_CreateMemOpAttr : StrEnumAttr<"CreateMemOpAttr",
 		}
 //structure creation operations
 def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait]> {
-    let summary = "Create memeory component.";
-    let description = [{
-        The `equeue.create_mem` operation takes in an input of memref type to generate a memory of that size and type attribute to determine the type of the memory. It uses an operation trait to declare that it has no side effects.
+  let summary = "Create memeory component.";
+  let description = [{
+    Creates a memory component of the given memory type, data size and data type, 
+    and returns a handler to the memory component.
 
-        This operation takes an shape and returns a reference to memory.
+    Example:
 
-        Example:
+    ```mlir
+    %1 = equeue.create_mem [1024], f32, SRAM
+    ```
+  }];
 
-        ```mlir
-        %0 = "equeue.create_mem"(){type = "register"}:(memref<16xf32>)->i32
-        ```
-    }];
-
-    let arguments = (ins I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type);
-    let results = (outs I32:$res);
-		let parser = [{ return ::parse$cppClass(parser, result); }];
-		//let skipDefaultBuilders = 1;
-    let extraClassDeclaration = [{
-			SmallVector<int, 8> getShape(){
-				auto attr = getAttr("shape").cast<DenseIntElementsAttr>();
-        SmallVector<int, 8> shape(attr.getValues<int64_t>());
-        return shape;
-			};
-			StringRef getDataType(){
-				return getAttr("data").cast<StringAttr>().getValue();
-			};
-			StringRef getMemType(){
-				return getAttr("type").cast<StringAttr>().getValue();
-			};
-		}];
+  let arguments = (ins I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type);
+  let results = (outs I32:$res);
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+  //let skipDefaultBuilders = 1;
+  let extraClassDeclaration = [{
+    SmallVector<int, 8> getShape(){
+      auto attr = getAttr("shape").cast<DenseIntElementsAttr>();
+      SmallVector<int, 8> shape(attr.getValues<int64_t>());
+      return shape;
+    };
+    StringRef getDataType(){
+      return getAttr("data").cast<StringAttr>().getValue();
+    };
+    StringRef getMemType(){
+      return getAttr("type").cast<StringAttr>().getValue();
+    };
+  }];
 }
 
 def EQueue_ProcARMx86 : StrEnumAttrCase<"ARMx86">;
@@ -92,59 +91,82 @@ def EQueue_CreateProcOpAttr : StrEnumAttr<"CreateProcOpAttr",
 		}
 
 def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTrait]> {
-    let summary = "Create processor component.";
+  let summary = "Create processor component.";
+  let description = [{
+    Creates a processor component of the given processor type, 
+    and returns a handler to the processor component.
 
-    let arguments = (ins EQueue_CreateProcOpAttr:$type);
-    let results = (outs I32:$res);
-		let parser = [{ return ::parse$cppClass(parser, result); }];
-		//let skipDefaultBuilders = 1;
+    Example:
+
+    ```mlir
+    %1 = equeue.create_proc ARMr5
+    ```
+  }];
+  let arguments = (ins EQueue_CreateProcOpAttr:$type);
+  let results = (outs I32:$res);
+  let parser = [{ return ::parse$cppClass(parser, result); }];
+  //let skipDefaultBuilders = 1;
 }
 
 def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait]> {
-    let summary = "Create DMA component.";
-    let description = [{
-        The `equeue.create_dma` operation creates a dma on demands.
+  let summary = "Create DMA component.";
+  let description = [{
+    The `equeue.create_dma` operation creates a dma on demands.
 
-        This operation takes no input and returns an i32 address.
+    This operation takes no input and returns an i32 address.
 
-        Example:
+    Example:
 
-        ```mlir
-        // Apply the foo operation to %0
-        %dma = "equeue.create_dma"():()->i32
-        ```
-    }];
+    ```mlir
+    // Apply the foo operation to %0
+    %dma = "equeue.create_dma"():()->i32
+    ```
+  }];
 
-    let results = (outs I32:$res);
+  let results = (outs I32:$res);
 }
 
 def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTrait]> {
-    let summary = "Create component with sub-coponents.";
-    let description = [{
-        The `equeue.create_comp` operation takes in multiple sub-components to generate a component.  
-        This operation takes an i32 address and returns an i32 address.
+  let summary = "Create component with sub-coponents.";
+  let description = [{
+    The operation takes variable number of operands representing component handlers.
+    It creates a component made of input component handlers, and returns a handler 
+    to the component.
 
-        Example:
+    Example:
 
-        ```mlir
-        %0 = affine.alloc():memref<16xf32>
-        // Apply the foo operation to %0
-        %1 = "equeue.create_mem"(%0){type = "register"}:(memref<16xf32>)->i32
-				%gpu = "equeue.create_comp"(%1):(i32)->i32
-        ```
-    }];
+    ```mlir
+    %accel_mem = equeue.create_mem [64], f32, SRAM
+    %accel_core = equeue.create_proc ARMr5
+    %accel_dma = "equeue.create_dma"():()->i32
+    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem):(i32, i32, i32) -> i32
+    ```
+  }];
 
-    let arguments = (ins Variadic<I32>:$size);
-    let results = (outs I32:$res);
+  let arguments = (ins Variadic<I32>:$size);
+  let results = (outs I32:$res);
 }
 def AnyScalarOrTensor : TypeConstraint<Or<[AnySignlessInteger.predicate,
                                            AnyFloat.predicate,
                                            AnyTensor.predicate]>,
                                        "scalar-or-tensor">;
 // memory operations
-//TODO: parse I32
 def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
 	let summary = "Alloc memory of given size on memory component.";
+  let description = [{
+    Returns a buffer representing a reference to a particular memory space. 
+    The type of memory buffer is `::equeue::ContainerType`
+    This operation takes in a memory handler as operand. Together with attributes 
+    of memory buffer, the operation models a buffer allocation process and 
+    returns a buffer.
+
+    Example:
+
+    ```mlir
+    %1 = equeue.create_mem [1024], f32, SRAM
+    %2 = equeue.alloc %1, [5], f32 : !equeue.container<tensor<5xf32>, i32>
+    ```
+  }];
 	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, StrAttr:$data);
 	let results = (outs EQueue_ContainerType: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
@@ -165,107 +187,115 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
 
 def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {
 	let summary = "Dealloc memory of given size on memory component.";
+  let description = [{
+    Deallocate a buffer (or more) and the space reserved for the buffer on 
+    the memory it refers to.
+
+    Example:
+
+    ```mlir
+    %1 = equeue.create_mem [1024], f32, SRAM
+    %2 = equeue.alloc %1, [5], f32 : !equeue.container<tensor<5xf32>, i32>
+    equeue.dealloc %2: !equeue.container<tensor<5xf32>, i32>
+    ```
+  }];
 	let arguments = (ins Variadic<EQueue_ContainerType>: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
 def EQueue_MemWriteOp : EQueue_Op<"write"> {
-    let summary = "Assign memeory component with value.";
-    let description = [{
-        The `equeue.assign_mem` operation takes in an memref data and a i32 adress pointing a memory component to generate a memory containing that piece of data
-        
-				This operation takes in a memref data and an i32 address and then returns container type to the memory.
+  let summary = "Assign memeory component with value.";
+  let description = [{
+    This operation takes in a value of any tensor or scalar type, together a memory buffer. 
+    It writes a value to a memory buffer. 
 
-        Example:
+    Example:
+    ```mlir
+    %1 = equeue.create_mem [1024], f32, SRAM
+    %2 = equeue.alloc %1, [1], f32 : !equeue.container<f32, i32>
+    %3 = std.constant 10: f32
+    "equeue.write"(%3, %2): (f32, !equeue.container<f32, i32>)->()
+    ```
+  }];
 
-        ```mlir
-        %size = affine.alloc():memref<16xf32>
-				%value = affine.alloc():memref<16xf32>
-        %start = "equeue.control_start"():()->index
-        %1 = "equeue.create_mem"(%size){type = "register"}:(memref<16xf32>)->i32
-        %2, %3 = "equeue.write"(%start, %value, %1):(index, memref<16xf32>, i32)->(index, container<memref<16xf32>, i32>>)
-				```
-    }];
-
-    let arguments = (ins AnyScalarOrTensor: $value, EQueue_ContainerType: $buffer);
-    let extraClassDeclaration = [{
-      Value getBuffer(){
-        return getOperand(1);
-      };
-	  }];
+  let arguments = (ins AnyScalarOrTensor: $value, EQueue_ContainerType: $buffer);
+  let extraClassDeclaration = [{
+    Value getBuffer(){
+      return getOperand(1);
+    };
+  }];
 
 }
 
 def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
-    let summary = "read data from container at certain index.";
-    
-    let arguments = (ins EQueue_ContainerType: $container, Variadic<Index>:$index);
-    let results = (outs AnyScalarOrTensor: $res);
-    let extraClassDeclaration = [{
-      Value getBuffer(){
-        return getOperand(0);
-      };
-      operand_range getIndex(){
-        return {operand_begin() + 1, operand_end()};
-      }
-      bool hasOffset(){
-        return !getIndex().empty();
-      }
-	  }];
-}
+  let summary = "read data from container at certain index.";
+  let description = [{
+    This operation takes in a memory buffer and an offset of variable number.
+    Returns the value read from the buffer given certain offset 
 
-def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
-    let summary = "Copy data on one memeory component to another memory component.";
-    
-    let arguments = (ins EQueue_SignalType: $start, EQueue_ContainerType: $src_buffer, EQueue_ContainerType: $dest_buffer, I32:$dma, Optional<Index>:$offset);
-    let results = (outs EQueue_SignalType: $done);
-		let extraClassDeclaration = [{
-			Value getDMAHandler(){
-				return getOperand(3);
-			};
-			Value getSrcBuffer(){
-				return getOperand(1);
-			};
-			Value getDestBuffer(){
-				return getOperand(2);
-			};
-		}];
+    Example:
+    ```mlir
+    %value = "equeue.read" (%buffer, %j):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
+    ```
+  }];
+  let arguments = (ins EQueue_ContainerType: $container, Variadic<Index>:$index);
+  let results = (outs AnyScalarOrTensor: $res);
+  let extraClassDeclaration = [{
+    Value getBuffer(){
+      return getOperand(0);
+    };
+    operand_range getIndex(){
+      return {operand_begin() + 1, operand_end()};
+    }
+    bool hasOffset(){
+      return !getIndex().empty();
+    }
+  }];
 }
 
 
-
-// signal manupulation
-def EQueue_ControlStartOp : EQueue_Op<"control_start", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
-    let summary = "Create a start signal";
-    
-    let results = (outs EQueue_SignalType: $done);
-}
-
-def EQueue_ControlOrOp : EQueue_Op<"control_or", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
-    let summary = "Logical or for input signals";
-    
-    let arguments = (ins Variadic<EQueue_SignalType>: $signals);
-    let results = (outs EQueue_SignalType: $done);
-}
-def EQueue_ControlAndOp : EQueue_Op<"control_and", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
-    let summary = "Logical and for input signals";
-    
-    let arguments = (ins Variadic<EQueue_SignalType>: $signals);
-    let results = (outs EQueue_SignalType: $done);
-}
-def EQueue_AwaitOp : EQueue_Op<"await", [NoSideEffect]> {
-    let summary = "A barrier to communicate asynchronous call and synchronous call";    
-    let arguments = (ins Variadic<EQueue_SignalType>: $signals);
-}
-def EQueue_ReturnOp: EQueue_Op<"return", 
-		[NoSideEffect, Terminator]>{
-
-  let arguments = (ins Variadic<AnyType>:$res);
-
-}
 def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"ReturnOp">, IsolatedFromAbove, AsyncOpTrait]> {
   let summary = "launch a device";
-  
+  let description = [{
+    Returns a signal representing a event is finished, whose type is `::equeue::SignalType`, 
+    as well as variable number of results from `equeue.return` operation.
+    
+    The first two operands `equeue.launch`operation takes in is a signal to start the event 
+    and the device the event is launched on. The other operands are all resources are passed 
+    to the device, representing the device has gained control over the resources.
+
+    The operation also takes in a region as input operand, or equivalently, launch body. 
+    Inside the launch body, operations are executed sequentially with a program counter to 
+    denote the execution state. Event queue of corresponding dialect prevents the asynchronous 
+    event operations block the sequential execution.
+
+    Example:
+    ```mlir
+    %done = equeue.launch (%1, %2, %3, %4 = %act_mem, %weight_mem, %ofmap_mem, %k: 
+    !equeue.container<tensor<5xf32>, i32>, !equeue.container<tensor<5xf32>, i32>, 
+    !equeue.container<f32, i32>, index) 
+    in (%start, %core_device)  
+    {
+      %c0 = constant 0.0:f32
+      "equeue.write"(%c0, %3): (f32, !equeue.container<f32, i32>)->()
+      %cst0 = constant 0:index
+      %cst1 = constant 1:index
+      %cst5 = constant 2:index
+      scf.for %i = %cst0 to %cst5 step %cst1 {
+        %j = affine.apply affine_map<(d0,d1)->(d0+d1)>(%offset,%i)
+        %ifmap = "equeue.read" (%1,%j):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
+        %filter = "equeue.read" (%2,%i):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
+        %ofmap = "equeue.read" (%3):(!equeue.container<f32, i32>) -> f32
+        %psum = mulf %filter, %ifmap: f32
+        %ofmap_flight = addf %ofmap, %psum: f32
+
+        "equeue.write"( %ofmap_flight, %3):(f32, !equeue.container<f32, i32>)->()
+        "scf.yield"():()->()
+      }	
+      "equeue.return"():()->()
+    }
+    ```
+  }];
 	let arguments = (ins EQueue_SignalType:$start, I32:$device, Variadic<AnyType>:$operands);
   let results = (outs EQueue_SignalType:$done, Variadic<AnyType>:$res);
   let regions = (region AnyRegion:$region);
@@ -281,32 +311,145 @@ def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"Return
     }
   }];
 	let parser = [{ return parse$cppClass(parser, result); }];
-  //let skipDefaultBuilders = 1;
-  //let builders = [
-  //  OpBuilder<"OpBuilder &builder, OperationState &result, "
-  //            "Value cond, bool withElseRegion">,
-  //  OpBuilder<"OpBuilder &builder, OperationState &result, "
-  //            "TypeRange resultTypes, Value cond, bool withElseRegion">,
-  //  OpBuilder<
-  //      "OpBuilder &builder, OperationState &result, TypeRange resultTypes, "
-  //      "Value cond, "
-  //      "function_ref<void(OpBuilder &, Location)> thenBuilder "
-  //      "    = buildTerminatedBody, "
-  //      "function_ref<void(OpBuilder &, Location)> elseBuilder = nullptr">,
-  //  OpBuilder<
-  //      "OpBuilder &builder, OperationState &result, Value cond, "
-  //      "function_ref<void(OpBuilder &, Location)> thenBuilder "
-  //      "    = buildTerminatedBody, "
-  //      "function_ref<void(OpBuilder &, Location)> elseBuilder = nullptr">
-  //];
+}
 
-  //let extraClassDeclaration = [{
-  //  OpBuilder getThenBodyBuilder() {
-  //    Block* body = getBody();
-  //    return results().empty() ? OpBuilder::atBlockTerminator(body)
-  //                             : OpBuilder::atBlockEnd(body);
-  //  }
-  //}];
+def EQueue_ReturnOp: EQueue_Op<"return", 
+		[NoSideEffect, Terminator]>{
+  let summary = "explicit terminator of  `equeue.launch` launch body";
+  let description = [{
+    Takes in variable number of operands and passes to `equeue.launch` operation as results.
+    Returns nothing. 
+
+    Example:
+    ```mlir
+    %done, %dram_buffer = equeue.launch (%1 = %sram_buffer: !equeue.container<tensor<5xf32>, i32>) 
+    in (%start, %core_device) : tensor<5xf32>
+    {
+      %3 = "equeue.read"(%1):(!equeue.container<tensor<5xf32>, i32>)-> tensor<5xf32>
+      "equeue.return"(%3):(tensor<5xf32>)->()
+    }
+    ```
+  }];
+  let arguments = (ins Variadic<AnyType>:$res);
+
+}
+
+def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
+  let summary = "Copies value from one buffer to the other.";
+  let description = [{
+    Returns a signal representing a event is finished, whose type is `::equeue::SignalType`. 
+    The first operand it takes in is a start signal, then the source buffer, destination buffer 
+    and the device that launching the event, usually a DMA. It can also take in variable number 
+    of offset.
+
+    Example:
+    ```mlir
+    %done = "equeue.memcpy"(%start, %src_buffer, %dest_buffer, %dma): (!equeue.signal, 
+    !equeue.container<tensor<5xf32>,i32>, !equeue.container<tensor<5xf32>,i32>, i32) -> 
+    !equeue.signal		
+    ```
+
+    This is completely equivalent to the following code rewritten with `equeue.launch`, but 
+    `equeue.memcpy` is more concise, i.e. `equeue.memcpy` is the syntactic sugar for 
+    `equeue.launch` on a particular device with only read and write operations in the launch body.
+    
+    Example:
+    ```mlir
+    %done = equeue.launch (%1, %2 = %sram_buffer, %dram_buffer: 
+    !equeue.container<tensor<5xf32>, i32>, !equeue.container<tensor<5xf32>, i32>) 
+    in (%start, %dma)  
+    {
+      %3 = "equeue.read"(%1):(!equeue.container<tensor<5xf32>, i32>)-> tensor<5xf32>
+      "equeue.write"( %3, %1):(tensor<5xf32>, !equeue.container<f32, i32>)->()
+      "equeue.return"():()->()
+    }	
+    ```
+  }];
+  let arguments = (ins EQueue_SignalType: $start, EQueue_ContainerType: $src_buffer, EQueue_ContainerType: $dest_buffer, I32:$dma, Optional<Index>:$offset);
+  let results = (outs EQueue_SignalType: $done);
+  let extraClassDeclaration = [{
+    Value getDMAHandler(){
+      return getOperand(3);
+    };
+    Value getSrcBuffer(){
+      return getOperand(1);
+    };
+    Value getDestBuffer(){
+      return getOperand(2);
+    };
+  }];
+}
+
+
+
+// signal manupulation
+def EQueue_ControlStartOp : EQueue_Op<"control_start", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
+  let summary = "Create a start signal";
+  let description = [{
+    Returns a immediate done signal. The event takes no time.
+    
+    Example:
+    ```mlir
+    %start = "equeue.control_start"():()->!equeue.signal
+    //then a launch operation relying on nothing can start execution
+    %done, %dram_buffer = equeue.launch (%1 = %sram_buffer: !equeue.container<tensor<5xf32>, i32> ) 
+    in (%start, %core_device) : tensor<5xf32>
+    {
+      %3 = "equeue.read"(%1):(!equeue.container<tensor<5xf32>, i32>)-> tensor<5xf32>
+      "equeue.return"(%3):(tensor<5xf32>)->()
+    }
+    ``` 
+  }];
+  let results = (outs EQueue_SignalType: $done);
+}
+
+def EQueue_ControlAndOp : EQueue_Op<"control_and", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
+  let summary = "Logical AND for input signals";
+  let description = [{
+    Takes in variable number of signal operands and returns a done signal when all 
+    events represented by input signals are done.
+    
+    Example:
+    ```mlir
+    %3 = "equeue.control_and"(%1, %2):(!equeue.signal, !equeue.signal)->!equeue.signal
+    ``` 
+  }];
+  let arguments = (ins Variadic<EQueue_SignalType>: $signals);
+  let results = (outs EQueue_SignalType: $done);
+}
+def EQueue_ControlOrOp : EQueue_Op<"control_or", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
+  let summary = "Logical OR for input signals";
+  let description = [{
+    Takes in variable number of signal operands and returns a done signal when any event 
+    represented by the input signal is done.
+
+    Example:
+    ```mlir
+    %3 = "equeue.control_or"(%1, %2):(!equeue.signal, !equeue.signal)->!equeue.signal
+    ``` 
+  }];
+  let arguments = (ins Variadic<EQueue_SignalType>: $signals);
+  let results = (outs EQueue_SignalType: $done);
+}
+//await 
+def EQueue_AwaitOp : EQueue_Op<"await", [NoSideEffect]> {
+  let summary = "A barrier to communicate asynchronous call and synchronous call";    
+  let description = [{
+    Takes in variable number of signal operands. 
+    The `equeue.await` operation is executed sequentially as normal sequential operation, 
+    i.e. it is not pushed to any event queue. However, it blocks on signal operands before 
+    the signal is actually generated, namely, the event the signal represents finishes. 
+    In this way, the out of order execution of concurrent devices can communicate with sequential 
+    execution of current device.
+    
+    Example:
+    ```mlir
+    "equeue.await"(%1, %2):(!equeue.signal, !equeue.signal) -> ()
+    // e.g. sometime return may want to wait for certain launching block finishs
+    "equeue.return"(%3):(tensor<5xf32>)->()
+    ``` 
+  }];
+  let arguments = (ins Variadic<EQueue_SignalType>: $signals);
 }
 
 #endif // EQUEUE_OPS
