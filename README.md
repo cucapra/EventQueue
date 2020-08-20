@@ -14,12 +14,12 @@ By and large, event queue dialect is design to estimate performance of concurren
 
 - Model concurrency between heterogenous devices.
 
-Check [further documentation](doc/) to see how the goals are achieved. 
+Check [further documentation](mydoc/) to see how the goals are achieved. 
 
 
 ### EQueue Dialect in MLIR Lowering Pipeline
 
-![lowering_pipeline](/doc/fig/lowering_pipeline.png)
+![lowering_pipeline](/mydoc/fig/lowering_pipeline.png)
 
 Event queue dialect is designed to do performance analysis.
 
@@ -70,7 +70,7 @@ The output JSON file can be viewed in [chrome://tracing/](chrome://tracing/)
 
 Below is the visualization of running `test/EQueue/gpu.mlir`  
 
-![visualization](/doc/fig/estimation_result.png)
+![visualization](/mydoc/fig/estimation_result.png)
 
 
 
