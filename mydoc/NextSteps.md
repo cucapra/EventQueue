@@ -2,7 +2,15 @@
 
 This is to log my random thoughts on future steps...
 
+#### Sep 3th
+
+- Add network / BUS operation
+
+- Front-end: https://mlir.llvm.org/docs/Bindings/Python/
+- Validate through SCale-Sim: https://github.com/ARM-software/SCALE-Sim or build Verilog (also affect how to build front-end)
+
 #### Validation
+
 - Implement architecture like systolic array and ML accelerator like Eyeriss at different scales. 
 
 - Having two designs with relative accuracy can somewhat help validate the simulator.
@@ -73,8 +81,6 @@ This is to log my random thoughts on future steps...
     	opB
     	opC
     }
-
-
 
 
 
