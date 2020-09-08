@@ -1,11 +1,15 @@
 #change LLVM_DIR and MLIR_DIR to ones local directory
-cmake -GNinja \
-		-DLLVM_DIR=~/Desktop/llvm-project/build/lib/cmake/llvm \
-		-DMLIR_DIR=~/Desktop/llvm-project/build/lib/cmake/mlir \
+cmake -G Ninja .. \
+ 		-DLLVM_EXTERNAL_LIT=/home/qino/Desktop/llvm-project/build/bin/llvm-lit \
+		-DMLIR_DIR=/home/qino/Desktop/llvm-project/build/lib/cmake/mlir \
+		-DCMAKE_C_COMPILER=clang \
+		-DCMAKE_CXX_COMPILER=clang++ \
+ 		-DCMAKE_BUILD_TYPE=Debug \
 		..
-	      	#-DCMAKE_C_COMPILER=clang-8 \
+		#-DCMAKE_C_COMPILER=clang-8 \
 		#-DCMAKE_CXX_COMPILER=clang++-8 \
 		#-DCMAKE_BUILD_TYPE=Debug \
+		#-DLLVM_DIR=~/Desktop/llvm-project/build/lib/cmake/llvm \
 
 
 

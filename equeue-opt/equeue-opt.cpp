@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <fstream>
+#include <iostream>
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
@@ -38,6 +39,12 @@
 #include "EQueue/EQueueDialect.h"
 #include "EQueue/EQueueTraits.h"
 #include "EQueue/CommandProcessor.h"
+#include "EQueue/EQueueDialectGenerator.h"
+
+static llvm::cl::opt<bool> generateInputFile(
+    "generate-input-file",
+    llvm::cl::desc("generate the input file"),
+    llvm::cl::init(true));
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -124,38 +131,44 @@ int main(int argc, char **argv) {
     }
     return 0;
   }
-
-  // Set up the input file.
+  
   std::string errorMessage;
-  auto file = mlir::openInputFile(inputFilename, &errorMessage);
-  if (!file) {
-    llvm::errs() << errorMessage << "\n";
-    return 1;
-  }
-
   auto output = mlir::openOutputFile(outputFilename, &errorMessage);
   if (!output) {
     llvm::errs() << errorMessage << "\n";
     exit(1);
   }
-
-  if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
-                         splitInputFile, verifyDiagnostics, verifyPasses,
-                         allowUnregisteredDialects))) {
-    return 1;
+  
+  if(generateInputFile){
+    simpleGenerator(context);
   }
-	
-		auto module = loadFileAndProcessModule(context);
-	PassManager pm(module->getContext());
-	
-	
-	std::string json_fn;
-	if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
-	std::ofstream json_fp(json_fn);
-	std::stringstream traceStream;
-	acdc::CommandProcessor proc(traceStream);
-	proc.run(module.get());
-  json_fp << traceStream.str();
+  else{
+    // Set up the input file.
+    auto file = mlir::openInputFile(inputFilename, &errorMessage);
+    if (!file) {
+      llvm::errs() << errorMessage << "\n";
+      return 1;
+    }
+
+    if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
+                           splitInputFile, verifyDiagnostics, verifyPasses,
+                           allowUnregisteredDialects))) {
+      return 1;
+    }
+	  
+    auto module = loadFileAndProcessModule(context);
+	  PassManager pm(module->getContext());
+	  
+	  std::string json_fn;
+	  if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
+	  std::ofstream json_fp(json_fn);
+	  std::stringstream traceStream;
+	  acdc::CommandProcessor proc(traceStream);
+	  proc.run(module.get());
+    json_fp << traceStream.str();
+  }
+  
+
 
   // Keep the output file if the invocation of MlirOptMain was successful.
   output->keep();

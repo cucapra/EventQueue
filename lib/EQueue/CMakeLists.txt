@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIREQueue
         EQueueDialect.cpp
         EQueueOps.cpp
+        EQueueDialectGenerator.cpp
 				CommandProcessor.cpp
         ADDITIONAL_HEADER_DIRS
         ${PROJECT_SOURCE_DIR}/include/EQueue
