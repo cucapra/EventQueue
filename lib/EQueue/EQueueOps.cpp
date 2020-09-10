@@ -35,12 +35,10 @@ using namespace xilinx::equeue;
 // CreateDMAOp 
 //===-------------------------------------------------
 //===----------------------------------------------------------------------===//
-void CreateDMAOp::build(Builder builder, OperationState &result) {
+void CreateDMAOp::build(Builder builder, OperationState &result, StringRef name) {
+	result.addAttribute("name", builder.getStringAttr(name));
 	auto i32Type = IntegerType::get(32, builder.getContext());
 	result.types.push_back(i32Type);
-}
-void print(OpAsmPrinter &p, CreateDMAOp op) {
-  p << "\"equeue.create_dma\"():()->i32";
 }
 
 //===----------------------------------------------------------------------===//
@@ -49,9 +47,10 @@ void print(OpAsmPrinter &p, CreateDMAOp op) {
 static ParseResult parseCreateMemOp(OpAsmParser &parser,
                                      OperationState &result) {
 	Attribute extentsRaw;
-		StringRef data, type;
+		StringRef name, data, type;
 	NamedAttrList dummy;
-	if (parser.parseAttribute(extentsRaw, "shape", dummy) || 
+	if (parser.parseKeyword(&name) || parser.parseComma() || 
+	    parser.parseAttribute(extentsRaw, "shape", dummy) || 
 			parser.parseComma() || parser.parseKeyword(&data) || 
 			parser.parseComma() || parser.parseKeyword(&type))
 		return failure();
@@ -66,6 +65,7 @@ static ParseResult parseCreateMemOp(OpAsmParser &parser,
 		ints.push_back(attr.getInt());
 	}
 	Builder &builder = parser.getBuilder();
+	result.addAttribute("name",  parser.getBuilder().getStringAttr(name));
 	result.addAttribute("shape", builder.getI64TensorAttr(ints));
 	result.addAttribute("data", parser.getBuilder().getStringAttr(data));
 	result.addAttribute("type", parser.getBuilder().getStringAttr(type));
@@ -80,17 +80,17 @@ static ParseResult parseCreateMemOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 static ParseResult parseCreateProcOp(OpAsmParser &parser,
                                      OperationState &result) {
-	StringRef type;
-	if (parser.parseKeyword(&type))
+	StringRef name, type;
+	if (parser.parseKeyword(&name) || parser.parseComma() || parser.parseKeyword(&type) )
 		return failure();
 
 	Builder &builder = parser.getBuilder();
-		result.addAttribute("type", parser.getBuilder().getStringAttr(type));
-		auto i32Type = IntegerType::get(32, builder.getContext());
-		result.types.push_back(i32Type);
+  result.addAttribute("name", parser.getBuilder().getStringAttr(name));
+  result.addAttribute("type", parser.getBuilder().getStringAttr(type));
+  auto i32Type = IntegerType::get(32, builder.getContext());
+  result.types.push_back(i32Type);
 	return success();
 }
-
 
 
 
@@ -100,12 +100,12 @@ static ParseResult parseCreateProcOp(OpAsmParser &parser,
 static ParseResult parseMemAllocOp(OpAsmParser &parser,
                                      OperationState &result) {
 	Builder &builder = parser.getBuilder();
-		OpAsmParser::OperandType mem;
-		Attribute extentsRaw;
-		StringRef data;
+  OpAsmParser::OperandType mem;
+  Attribute extentsRaw;
+  StringRef data;
 	NamedAttrList dummy;
 	auto i32Type = IntegerType::get(32, builder.getContext());
-		Type resType;
+  Type resType;
 	if ( parser.parseOperand(mem) || parser.parseComma() ||
 		parser.resolveOperand(mem, i32Type, result.operands) || 
 		parser.parseAttribute(extentsRaw, "shape", dummy) ||

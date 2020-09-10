@@ -19,7 +19,7 @@ void MLIRGenImpl::simpleGenerator(){
   //builder = b;
   ScopedContext scope(builder, f.getLoc());
   Value f7(ValueBuilder<ConstantFloatOp>(llvm::APFloat(7.0f), f32Type));
-  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc()).getResult();
+  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc(), "DMA").getResult();
   //Value dma(ValueBuilder<xilinx::equeue::CreateDMAOp>());
   llvm::outs()<<dma<<"\n";
 

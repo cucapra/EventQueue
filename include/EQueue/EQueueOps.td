@@ -51,11 +51,11 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
     Example:
 
     ```mlir
-    %1 = equeue.create_mem [1024], f32, SRAM
+    %1 = equeue.create_mem Mem, [1024], f32, SRAM
     ```
   }];
 
-  let arguments = (ins I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type);
+  let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
@@ -99,10 +99,10 @@ def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTra
     Example:
 
     ```mlir
-    %1 = equeue.create_proc ARMr5
+    %1 = equeue.create_proc Kernel, ARMr5
     ```
   }];
-  let arguments = (ins EQueue_CreateProcOpAttr:$type);
+  let arguments = (ins StrAttr:$name, EQueue_CreateProcOpAttr:$type);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
@@ -119,13 +119,18 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
 
     ```mlir
     // Apply the foo operation to %0
-    %dma = "equeue.create_dma"():()->i32
+    %dma = "equeue.create_dma"(){name = "DMA"}:()->i32
     ```
   }];
   let builders = [OpBuilder<
-      "Builder builder, OperationState &result">];
+      "Builder builder, OperationState &result, StringRef name">];
+  let arguments = (ins StrAttr:$name);
   let results = (outs I32:$res);
-  let printer = [{ return ::print(p, *this); }];
+  let extraClassDeclaration = [{
+		StringRef getName(){
+			return getAttr("name").cast<StringAttr>().getValue();
+		};
+	}];
 }
 
 def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTrait]> {
@@ -138,16 +143,39 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTra
     Example:
 
     ```mlir
-    %accel_mem = equeue.create_mem [64], f32, SRAM
-    %accel_core = equeue.create_proc ARMr5
-    %accel_dma = "equeue.create_dma"():()->i32
-    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem):(i32, i32, i32) -> i32
+    %accel_mem = equeue.create_mem Mem, [64], f32, SRAM
+    %accel_core = equeue.create_proc Kernel, ARMr5
+    %accel_dma = "equeue.create_dma"(){name = "DMA"}:()->i32
+    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem){name = "DMA"}:(i32, i32, i32) -> i32
     ```
   }];
 
-  let arguments = (ins Variadic<I32>:$size);
+  let arguments = (ins StrAttr:$name, Variadic<I32>:$size);
   let results = (outs I32:$res);
 }
+
+def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
+  let summary = "Get component from a composed component.";
+  let description = [{
+    The operation takes variable number of operands representing component handlers.
+    It creates a component made of input component handlers, and returns a handler 
+    to the component.
+
+    Example:
+
+    ```mlir
+    %accel_mem = equeue.create_mem Mem, [64], f32, SRAM
+    %accel_core = equeue.create_proc Kernel, ARMr5
+    %accel_dma = "equeue.create_dma"(){name = "DMA"}:()->i32
+    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem){name = "ACCEL"}:(i32, i32, i32) -> i32
+    %get_dma = "equeue.get_comp"(%accel_dma) {name = "DMA"}:(i32) -> i32
+    ```
+  }];
+
+  let arguments = (ins I32:$comp, StrAttr:$name);
+  let results = (outs I32:$res);
+}
+
 def AnyScalarOrTensor : TypeConstraint<Or<[AnySignlessInteger.predicate,
                                            AnyFloat.predicate,
                                            AnyTensor.predicate]>,
