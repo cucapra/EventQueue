@@ -32,6 +32,18 @@ using namespace mlir;
 using namespace xilinx::equeue;
 
 //===----------------------------------------------------------------------===//
+// CreateDMAOp 
+//===-------------------------------------------------
+//===----------------------------------------------------------------------===//
+void CreateDMAOp::build(Builder builder, OperationState &result) {
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
+void print(OpAsmPrinter &p, CreateDMAOp op) {
+  p << "\"equeue.create_dma\"():()->i32";
+}
+
+//===----------------------------------------------------------------------===//
 // CreateMemOp 
 //===----------------------------------------------------------------------===//
 static ParseResult parseCreateMemOp(OpAsmParser &parser,

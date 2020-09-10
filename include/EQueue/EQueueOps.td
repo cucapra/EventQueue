@@ -122,8 +122,10 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
     %dma = "equeue.create_dma"():()->i32
     ```
   }];
-
+  let builders = [OpBuilder<
+      "Builder builder, OperationState &result">];
   let results = (outs I32:$res);
+  let printer = [{ return ::print(p, *this); }];
 }
 
 def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTrait]> {

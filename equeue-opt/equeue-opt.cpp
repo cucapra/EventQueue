@@ -140,7 +140,8 @@ int main(int argc, char **argv) {
   }
   
   if(generateInputFile){
-    simpleGenerator(context);
+    MLIRGenImpl generator(context);
+    generator.simpleGenerator();
   }
   else{
     // Set up the input file.
