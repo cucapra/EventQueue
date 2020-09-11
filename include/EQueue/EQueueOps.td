@@ -55,11 +55,18 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
     ```
   }];
 
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, StringRef name, ArrayRef<int64_t> shape, StringRef data, StringRef type"
+    >
+  ];
   let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
   let extraClassDeclaration = [{
+		StringRef getName(){
+			return getAttr("name").cast<StringAttr>().getValue();
+		};
     SmallVector<int, 8> getShape(){
       auto attr = getAttr("shape").cast<DenseIntElementsAttr>();
       SmallVector<int, 8> shape(attr.getValues<int64_t>());
@@ -102,10 +109,17 @@ def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTra
     %1 = equeue.create_proc Kernel, ARMr5
     ```
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, StringRef name, StringRef type">];
   let arguments = (ins StrAttr:$name, EQueue_CreateProcOpAttr:$type);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
+  let extraClassDeclaration = [{
+		StringRef getName(){
+			return getAttr("name").cast<StringAttr>().getValue();
+		};
+	}];
 }
 
 def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait]> {
@@ -123,7 +137,7 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
     ```
   }];
   let builders = [OpBuilder<
-      "Builder builder, OperationState &result, StringRef name">];
+    "Builder builder, OperationState &result, StringRef name">];
   let arguments = (ins StrAttr:$name);
   let results = (outs I32:$res);
   let extraClassDeclaration = [{
@@ -149,6 +163,8 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTra
     %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem){name = "DMA"}:(i32, i32, i32) -> i32
     ```
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, ValueRange comps, StringRef name">];
 
   let arguments = (ins StrAttr:$name, Variadic<I32>:$size);
   let results = (outs I32:$res);
@@ -171,7 +187,8 @@ def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
     %get_dma = "equeue.get_comp"(%accel_dma) {name = "DMA"}:(i32) -> i32
     ```
   }];
-
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value comp, StringRef name, StringRef type">];
   let arguments = (ins I32:$comp, StrAttr:$name);
   let results = (outs I32:$res);
 }
@@ -197,6 +214,10 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
     %2 = equeue.alloc %1, [5], f32 : !equeue.container<tensor<5xf32>, i32>
     ```
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value mem, ArrayRef<int64_t> shape," 
+    "StringRef data, Type tensorDataType"
+	>];
 	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, StrAttr:$data);
 	let results = (outs EQueue_ContainerType: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
@@ -229,6 +250,9 @@ def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {
     equeue.dealloc %2: !equeue.container<tensor<5xf32>, i32>
     ```
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, ValueRange buffer"
+	>];
 	let arguments = (ins Variadic<EQueue_ContainerType>: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
 }
@@ -248,6 +272,9 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
     ```
   }];
 
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value value, ValueRange buffer"
+	>];
   let arguments = (ins AnyScalarOrTensor: $value, EQueue_ContainerType: $buffer);
   let extraClassDeclaration = [{
     Value getBuffer(){
@@ -268,6 +295,9 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
     %value = "equeue.read" (%buffer, %j):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
     ```
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value container, ValueRange index, Type type"
+	>];
   let arguments = (ins EQueue_ContainerType: $container, Variadic<Index>:$index);
   let results = (outs AnyScalarOrTensor: $res);
   let extraClassDeclaration = [{
@@ -326,10 +356,17 @@ def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"Return
     }
     ```
   }];
+  let builders = [OpBuilder<
+    "OpBuilder builder, OperationState &result, Value start, Value device, ValueRange operands," 
+    "function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder"
+	>];
 	let arguments = (ins EQueue_SignalType:$start, I32:$device, Variadic<AnyType>:$operands);
   let results = (outs EQueue_SignalType:$done, Variadic<AnyType>:$res);
   let regions = (region AnyRegion:$region);
 	let extraClassDeclaration = [{
+    using BodyBuilderFn =
+        function_ref<void(OpBuilder &, Location, ValueRange)>;
+        
 		Value getStartSignal(){
 			return getOperand(0);
 		};
@@ -395,6 +432,9 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     }	
     ```
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset"
+	>];
   let arguments = (ins EQueue_SignalType: $start, EQueue_ContainerType: $src_buffer, EQueue_ContainerType: $dest_buffer, I32:$dma, Optional<Index>:$offset);
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
@@ -430,6 +470,9 @@ def EQueue_ControlStartOp : EQueue_Op<"control_start", [NoSideEffect, ControlOpT
     }
     ``` 
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result"
+	>];
   let results = (outs EQueue_SignalType: $done);
 }
 
@@ -444,6 +487,9 @@ def EQueue_ControlAndOp : EQueue_Op<"control_and", [NoSideEffect, ControlOpTrait
     %3 = "equeue.control_and"(%1, %2):(!equeue.signal, !equeue.signal)->!equeue.signal
     ``` 
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, ValueRange signals"
+	>];
   let arguments = (ins Variadic<EQueue_SignalType>: $signals);
   let results = (outs EQueue_SignalType: $done);
 }
@@ -458,6 +504,9 @@ def EQueue_ControlOrOp : EQueue_Op<"control_or", [NoSideEffect, ControlOpTrait, 
     %3 = "equeue.control_or"(%1, %2):(!equeue.signal, !equeue.signal)->!equeue.signal
     ``` 
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, ValueRange signals"
+	>];
   let arguments = (ins Variadic<EQueue_SignalType>: $signals);
   let results = (outs EQueue_SignalType: $done);
 }
@@ -479,6 +528,9 @@ def EQueue_AwaitOp : EQueue_Op<"await", [NoSideEffect]> {
     "equeue.return"(%3):(tensor<5xf32>)->()
     ``` 
   }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, ValueRange signals"
+	>];
   let arguments = (ins Variadic<EQueue_SignalType>: $signals);
 }
 

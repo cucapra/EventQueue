@@ -1,7 +1,7 @@
 #include "EQueue/EQueueDialectGenerator.h"
 
 using std_constant_float = ValueBuilder<ConstantFloatOp>;
-
+using equeue_dma = ValueBuilder<xilinx::equeue::CreateDMAOp>;
 void MLIRGenImpl::simpleGenerator(){
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());
 
@@ -19,8 +19,8 @@ void MLIRGenImpl::simpleGenerator(){
   //builder = b;
   ScopedContext scope(builder, f.getLoc());
   Value f7(ValueBuilder<ConstantFloatOp>(llvm::APFloat(7.0f), f32Type));
-  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc(), "DMA").getResult();
-  //Value dma(ValueBuilder<xilinx::equeue::CreateDMAOp>());
+  //Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc(), "DMA").getResult();
+  Value dma(equeue_dma("DMA"));
   llvm::outs()<<dma<<"\n";
 
   theModule.print(llvm::outs());
