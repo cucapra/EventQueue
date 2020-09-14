@@ -51,8 +51,9 @@ void CreateMemOp::build(Builder builder, OperationState &result, StringRef name,
 	result.addAttribute("shape", builder.getI64TensorAttr(shape));
 	result.addAttribute("data", builder.getStringAttr(data));
 	result.addAttribute("type", builder.getStringAttr(type));
-	auto i32Type = IntegerType::get(32, builder.getContext());
-	result.types.push_back(i32Type);
+	//TODO: depend on input type
+	auto f32Type = FloatType::getF32(builder.getContext());
+	result.types.push_back(f32Type);
 }
 
 static ParseResult parseCreateMemOp(OpAsmParser &parser,
@@ -112,7 +113,7 @@ static ParseResult parseCreateProcOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // CreateCompOp 
 //===----------------------------------------------------------------------===//
-void CreateCompOp::build(Builder builder, OperationState &result, ValueRange comps, StringRef name) {
+void CreateCompOp::build(Builder builder, OperationState &result, StringRef name, ValueRange comps) {
   result.addOperands(comps);
 	result.addAttribute("name", builder.getStringAttr(name));
 	auto i32Type = IntegerType::get(32, builder.getContext());
@@ -122,8 +123,7 @@ void CreateCompOp::build(Builder builder, OperationState &result, ValueRange com
 //===----------------------------------------------------------------------===//
 // GetCompOp 
 //===----------------------------------------------------------------------===//
-void GetCompOp::build(Builder builder, OperationState &result, Value comp, StringRef name, 
-  StringRef type) {
+void GetCompOp::build(Builder builder, OperationState &result, Value comp, StringRef name) {
   result.addOperands(comp);
 	result.addAttribute("name", builder.getStringAttr(name));
 	auto i32Type = IntegerType::get(32, builder.getContext());

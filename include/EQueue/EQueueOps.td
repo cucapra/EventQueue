@@ -164,7 +164,7 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTra
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, ValueRange comps, StringRef name">];
+    "Builder builder, OperationState &result, StringRef name, ValueRange comps">];
 
   let arguments = (ins StrAttr:$name, Variadic<I32>:$size);
   let results = (outs I32:$res);
@@ -188,7 +188,7 @@ def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value comp, StringRef name, StringRef type">];
+    "Builder builder, OperationState &result, Value comp, StringRef name">];
   let arguments = (ins I32:$comp, StrAttr:$name);
   let results = (outs I32:$res);
 }
