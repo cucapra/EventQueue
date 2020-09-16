@@ -357,7 +357,7 @@ def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"Return
     ```
   }];
   let builders = [OpBuilder<
-    "OpBuilder builder, OperationState &result, Value start, Value device, ValueRange operands," 
+    "OpBuilder builder, OperationState &result, Value start, Value device, ValueRange operands, " 
     "function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder"
 	>];
 	let arguments = (ins EQueue_SignalType:$start, I32:$device, Variadic<AnyType>:$operands);
@@ -397,6 +397,12 @@ def EQueue_ReturnOp: EQueue_Op<"return",
     }
     ```
   }];
+  let skipDefaultBuilders=1;
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, ValueRange res", [{
+      result.addOperands(res);
+  }]>
+  ];
   let arguments = (ins Variadic<AnyType>:$res);
 
 }

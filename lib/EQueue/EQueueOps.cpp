@@ -237,17 +237,24 @@ void LaunchOp::build(OpBuilder builder, OperationState &result, Value start, Val
   result.addOperands(device);
   result.addOperands(operands);
   Region *bodyRegion = result.addRegion();
-  Block &bodyBlock = bodyRegion->front();
+  Block *bodyBlock = new Block;
   for(auto operand: operands){
-    bodyBlock.addArgument(operand.getType());
+    bodyBlock->addArgument(operand.getType());
   }
+  bodyRegion->push_back(bodyBlock);
 
+  
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(bodyBlock);
+  bodyBuilder(builder, result.location, bodyBlock->getArguments());
+  //TODO:verify it is a return op
+  Operation *returnOp = bodyBlock->getTerminator();
+  
+	result.types.append(returnOp->getOperands().getTypes().begin(),
+	  returnOp->getOperands().getTypes().end());
 	auto signalType = EQueueSignalType::get(builder.getContext());
 	result.types.push_back(signalType); 
   
-  OpBuilder::InsertionGuard guard(builder);
-  builder.setInsertionPointToStart(&bodyBlock);
-  bodyBuilder(builder, result.location, bodyBlock.getArguments());
 }
 static ParseResult parseLaunchOp(OpAsmParser &parser,
                                      OperationState &result) {
@@ -303,6 +310,10 @@ static ParseResult parseLaunchOp(OpAsmParser &parser,
 
 
 //===----------------------------------------------------------------------===//
+// ReturnOp 
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
 // MemCopyOp 
 //===----------------------------------------------------------------------===//
 void MemCopyOp::build(Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset) {
@@ -314,6 +325,10 @@ void MemCopyOp::build(Builder builder, OperationState &result, Value start, Valu
 	auto signalType = EQueueSignalType::get(builder.getContext());
   result.types.push_back(signalType);
 }
+
+
+
+
 
 //===----------------------------------------------------------------------===//
 // ControlStartOp 
