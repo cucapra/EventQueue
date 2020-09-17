@@ -2,6 +2,59 @@
 
 This is to log my random thoughts on future steps...
 
+#### Sep 17th
+
+- **Container Recomposition Issue**
+
+  Image we have a [5x1] container, and we want to remove the first value and append a new value to the tensor pointed by the container. We want these operations to be **free**. How shall we create operations?
+
+  - The most straight forward way is to add `equeue.split` and`equeue.concate`
+
+    ```MLIR
+    container<5x1xf32, i32> a
+    b=split(a, [0, 4], [0, 1]) -> container<5x1xf32, i32> 
+    c=split(a, [4, 5], [0, 1]) -> container<1x1xf32, i32> 
+    container<1x1xf32, i32> on_other_memory
+    memcpy(on_other_memory, c)
+    a = concate(b, c, dim=1) -> container<5x1xf32, i32> 
+    ```
+
+    However, this way of implementation will cause two problems:
+
+    1. Previously, only `equeue.alloc` can create `container` , and `equeue.dealloc` to delete `container`. The won't be overlaps and assigning memory is simple (by checking *memory size - allocated memory size < size to allocate* )
+
+       Now, with split and concatenation, things becomes complicated. Two container can point to the same memory or overlapping memories.
+
+    2. Also, the `split` and `concate` operations shouldn't be inside `equeue` dialect.
+
+  -  To avoid (1), we may create a `view` type and each container is only assigned once. But then `view` can also have the same issue about view overlapping...
+
+  - To avoid (2), we may want to create a special read and write for `container` type, which is free (doesn't cost energy, latency etc)
+
+    ```MLIR
+    container<5x1xf32, i32> a
+    tensor_a = free_read(a)->tensor<5x1xf32>
+    tensor_b, tensor_c = split(tensor_a, ...) -> tensor<4x1xf32>, tensor<4x1xf32>
+    
+    // Where to write it back??
+    free_write(tensor_b, tensor_c, a)
+    // maybe b = free_write(tensor_b) 
+    // if free_write can create new tensor, where is the memory (i32) info??
+    
+    container<1x1xf32, i32> on_other_memory
+    memcpy(on_other_memory, a)
+    //How to know which part of memory to write?
+    
+    ```
+
+- Fix simulator on get_comp and write the new large example
+- Try verify results of simulation with
+  - Verilog/HLS
+  - Scale-sim
+  - my knowledge
+
+
+
 #### Sep 3th
 
 - Add network / BUS operation
@@ -53,7 +106,7 @@ This is to log my random thoughts on future steps...
      Prob is: how to realize?
 
   2. %outer = equeue.parallel () = () to () step (){
-         equeue.yield %inner
+    ​     equeue.yield %inner
      }
      %outer should be equeue.shape type
 
@@ -77,9 +130,9 @@ This is to log my random thoughts on future steps...
   - It's more rely on simulation model
   - Or, we can do it explictly
     equeue.pipeline{
-    	opA 
-    	opB
-    	opC
+    ​	opA 
+    ​	opB
+    ​	opC
     }
 
 
