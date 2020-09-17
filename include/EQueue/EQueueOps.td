@@ -296,7 +296,7 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value container, ValueRange index, Type type"
+    "Builder builder, OperationState &result, Value container, Type type, ValueRange index = ValueRange{}"
 	>];
   let arguments = (ins EQueue_ContainerType: $container, Variadic<Index>:$index);
   let results = (outs AnyScalarOrTensor: $res);
@@ -439,7 +439,7 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset"
+    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset = ValueRange{}"
 	>];
   let arguments = (ins EQueue_SignalType: $start, EQueue_ContainerType: $src_buffer, EQueue_ContainerType: $dest_buffer, I32:$dma, Optional<Index>:$offset);
   let results = (outs EQueue_SignalType: $done);

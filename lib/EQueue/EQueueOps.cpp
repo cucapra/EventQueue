@@ -140,8 +140,8 @@ void MemAllocOp::build(Builder builder, OperationState &result, Value mem,
 	result.addAttribute("data", builder.getStringAttr(data));
   auto tensorType =  RankedTensorType::get(
         shape, tensorDataType);
-	auto i32Type = IntegerType::get(32, builder.getContext());
-	auto containerType = EQueueContainerType::get(tensorType, i32Type);
+	auto f32Type = FloatType::getF32(builder.getContext());
+	auto containerType = EQueueContainerType::get(tensorType, f32Type);
 	result.types.push_back(containerType);
 }
 
@@ -215,7 +215,7 @@ void MemWriteOp::build(Builder builder, OperationState &result, Value value, Val
 //===----------------------------------------------------------------------===//
 //XXX(Zhijing): tensorType does not store elementtype, so there is no "get" function to get the elementype get
 // the only thing we can do is to explicit give a type
-void MemReadOp::build(Builder builder, OperationState &result, Value container, ValueRange index, Type type) {
+void MemReadOp::build(Builder builder, OperationState &result, Value container, Type type, ValueRange index) {
   result.addOperands(container);
   result.addOperands(index);
   if(index.size() >= 1){
