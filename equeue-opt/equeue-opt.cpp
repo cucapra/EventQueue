@@ -42,9 +42,9 @@
 #include "EQueue/EQueueDialectGenerator.h"
 
 static llvm::cl::opt<bool> generateInputFile(
-    "generate-input-file",
+    "generate",
     llvm::cl::desc("generate the input file"),
-    llvm::cl::init(true));
+    llvm::cl::init(false));
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),

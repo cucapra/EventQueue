@@ -4,14 +4,14 @@ module {
 	func @graph(%act_in : tensor<16xf32>, %weight_in : tensor<5xf32>) -> tensor<12xf32> {
 
 		//structure
-		%aie_mem = equeue.create_mem [11], f32, SRAM
-		%aie_core = equeue.create_proc AIEngine
-		%aie = "equeue.create_comp"(%aie_mem, %aie_core):(i32, i32)->i32
+		%aie_mem = equeue.create_mem AIE_MEM, [11], f32, SRAM
+		%aie_core = equeue.create_proc AIE_CORE, AIEngine
+		%aie = "equeue.create_comp"(%aie_mem, %aie_core){name="AIE"}:(i32, i32)->i32
    	
-		%sram = equeue.create_mem [64], f32, SRAM
-		%accel_core = equeue.create_proc ARMr5
-		%accel_dma = "equeue.create_dma"():()->i32
-		%accel = "equeue.create_comp"(%accel_core, %aie, %accel_dma, %sram):(i32, i32, i32, i32) -> i32
+		%sram = equeue.create_mem SRAM, [64], f32, SRAM
+		%accel_core = equeue.create_proc ACCEL_CORE, ARMr5
+		%accel_dma = "equeue.create_dma"(){name="ACCEL_DMA"}:()->i32
+		%accel = "equeue.create_comp"(%accel_core, %aie, %accel_dma, %sram){name="ACCEL"}:(i32, i32, i32, i32) -> i32
 	
 		//control
 		%start_signal = "equeue.control_start"():()->!equeue.signal

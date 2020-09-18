@@ -18,7 +18,7 @@ using memcpy_op = ValueBuilder<xilinx::equeue::MemCopyOp>;
 //using launch_op = OperationBuilder<xilinx::equeue::LaunchOp>;
 using return_op = OperationBuilder<xilinx::equeue::ReturnOp>;
 
-//using start_op = ValueBuilder<xilinx::equeue::ControlStartOp>;
+using start_op = ValueBuilder<xilinx::equeue::ControlStartOp>;
 using control_and = ValueBuilder<xilinx::equeue::ControlAndOp>;
 using control_or = ValueBuilder<xilinx::equeue::ControlOrOp>;
 using await_op = OperationBuilder<xilinx::equeue::AwaitOp>;
@@ -59,7 +59,7 @@ void MLIRGenImpl::simpleGenerator(){
   auto filterType = RankedTensorType::get({5,5}, f32Type);
   auto ofmapType = RankedTensorType::get({12,12}, f32Type);
   auto f =
-      makeFunction("simple_func", {ofmapType}, {ifmapType, filterType});
+      makeFunction("graph", {ofmapType}, {ifmapType, filterType});
   theModule.push_back(f);
 
   //OpBuilder b(f.getBody());
@@ -77,7 +77,7 @@ void MLIRGenImpl::simpleGenerator(){
   }
   Value sram(create_mem("mem", ArrayRef<int64_t>{ 1024 }, "f32", "SRAM"));
   Value dma(create_dma("dma"));
-  Value processor(create_proc("proc", "MicroBlaze") );
+  Value processor(create_proc("proc", "MicroPlate") );
   Value accel( create_comp("accel", ValueRange{ comp, processor, sram, dma}) );
   //Value DRAM(create_mem("DRAM", ArrayRef<int64_t>{ 64 }, "f32", "DRAM"));
   //dma = create_dma("DMA");
@@ -89,8 +89,9 @@ void MLIRGenImpl::simpleGenerator(){
   /// -------------------
   
   //XXX(Zhijing): not sure why we cannot use aliasing here
-  Value signal = builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
-  LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+  Value signal = start_op();
+  //builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+  auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
     [&](ValueRange ins){
       accel = ins[0];
       Value ifmap = ins[0];
@@ -104,7 +105,8 @@ void MLIRGenImpl::simpleGenerator(){
       Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 12,12 }, "f32", f32Type);
       write_op(ifmap, ibuffer);
       
-      Value start_cpy = builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+      //Value start_cpy = builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+      Value start_cpy = start_op();
       Value pe = accel;
       SmallVector<Value, 5> pes, mems, procs;
       SmallVector<Value, 5> wbuffer2s, obuffer2s, ibuffer2s;
@@ -168,21 +170,20 @@ void MLIRGenImpl::simpleGenerator(){
             /// ------------------------------
             
             //seq for loop, memcpy ibuffer2
-            ValueRange pe_res = LaunchOpBuilder(signal, proc, ValueRange{mem, ibuffer2, wbuffer2, obuffer2}, 
+            ValueRange pe_res = LaunchOpBuilder(signal, proc, ValueRange{ibuffer2, wbuffer2, obuffer2}, 
               [&](ValueRange ins2){
               lb = std_constant_index(0);
               ub = std_constant_index(5);
               step = std_constant_index(1);
               loopNestBuilder(lb, ub, step, {}, [&](Value iv2, ValueRange args2) {
-                ifmap = read_op(ibuffer2, f32Type, iv2);
-                filter = read_op(wbuffer2, f32Type, iv2);
+                ifmap = read_op(ins2[0], f32Type, iv2);
+                filter = read_op(ins2[1], f32Type, iv2);
                 Value mul = std_mulf(ifmap, filter);
-                ofmap = read_op(obuffer2, f32Type);
+                ofmap = read_op(ins2[2], f32Type);
                 ofmap = std_addf(ofmap, mul);
-                write_op(ofmap, obuffer2);
+                write_op(ofmap, ins2[2]);
                 return scf::ValueVector{};
               });
-              mem = ins2[0];
               return_op(ValueRange{});
             });
           
@@ -191,12 +192,12 @@ void MLIRGenImpl::simpleGenerator(){
             //partial sum
             if(i > 0){
               signal = control_and(ValueRange{pe_signals[i], pe_signals[i-1]});
-              row_done = LaunchOpBuilder(signal, proc, ValueRange{wbuffer2s[i-1], obuffer2}, 
+              row_done = LaunchOpBuilder(signal, proc, ValueRange{obuffer2s[i-1], obuffer2s[i]}, 
               [&](ValueRange ins2){
                 Value psum1 = read_op(ins2[0], f32Type);
                 Value psum2 = read_op(ins2[1], f32Type);
                 ofmap = std_addf(psum1, psum2);
-                write_op(ofmap, obuffer2);
+                write_op(ofmap, ins2[1]);
                 return_op(ValueRange{});
               })[0];
             }//if
@@ -211,7 +212,9 @@ void MLIRGenImpl::simpleGenerator(){
       dealloc_op(ValueRange{wbuffer, obuffer, ibuffer});
       return_op(ValueRange{output});
   });
-
+  builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
+  //std_ret().addoperands(res[0]);
+  /// ------ end ---------
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }

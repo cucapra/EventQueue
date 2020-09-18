@@ -27,14 +27,14 @@ def EQueue_ContainerType :
     Type<CPred<"$_self.isa<EQueueContainerType>()">, "equeue container type">;
 
 
-//def EQueue_MemRegister : StrEnumAttrCase<"register">;
+def EQueue_MemRegister : StrEnumAttrCase<"RegisterFile">;
 def EQueue_MemSRAM : StrEnumAttrCase<"SRAM">;
 def EQueue_MemDRAM : StrEnumAttrCase<"DRAM">;
 
 def EQueue_CreateMemOpAttr : StrEnumAttr<"CreateMemOpAttr",
     "built-in reduction memory type supported by create memory operation",
     [
-//			EQueue_MemRegister,
+			EQueue_MemRegister,
 			EQueue_MemSRAM,
 			EQueue_MemDRAM
 		]>{

@@ -48,12 +48,12 @@ void CreateDMAOp::build(Builder builder, OperationState &result, StringRef name)
 void CreateMemOp::build(Builder builder, OperationState &result, StringRef name, 
 	ArrayRef<int64_t> shape, StringRef data, StringRef type) {
 	result.addAttribute("name", builder.getStringAttr(name));
+	//TODO: depend on input type
 	result.addAttribute("shape", builder.getI64TensorAttr(shape));
 	result.addAttribute("data", builder.getStringAttr(data));
 	result.addAttribute("type", builder.getStringAttr(type));
-	//TODO: depend on input type
-	auto f32Type = FloatType::getF32(builder.getContext());
-	result.types.push_back(f32Type);
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
 }
 
 static ParseResult parseCreateMemOp(OpAsmParser &parser,
@@ -218,10 +218,11 @@ void MemWriteOp::build(Builder builder, OperationState &result, Value value, Val
 void MemReadOp::build(Builder builder, OperationState &result, Value container, Type type, ValueRange index) {
   result.addOperands(container);
   result.addOperands(index);
-  if(index.size() >= 1){
+  auto tensorType = container.getType().cast<EQueueContainerType>().getValueType().cast<RankedTensorType>();
+  if(index.size() >= 1 || (tensorType.getShape().size() == 1 && tensorType.getShape()[0]==1) ){
 	  result.types.push_back(type);//scalar
 	}else{
-	  result.types.push_back(container.getType().cast<EQueueContainerType>().getValueType());//tensor
+	  result.types.push_back(tensorType);//tensor
 	}
 	
 }
@@ -250,10 +251,10 @@ void LaunchOp::build(OpBuilder builder, OperationState &result, Value start, Val
   //TODO:verify it is a return op
   Operation *returnOp = bodyBlock->getTerminator();
   
-	result.types.append(returnOp->getOperands().getTypes().begin(),
-	  returnOp->getOperands().getTypes().end());
 	auto signalType = EQueueSignalType::get(builder.getContext());
 	result.types.push_back(signalType); 
+	result.types.append(returnOp->getOperands().getTypes().begin(),
+	  returnOp->getOperands().getTypes().end());
   
 }
 static ParseResult parseLaunchOp(OpAsmParser &parser,
