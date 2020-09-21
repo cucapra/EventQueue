@@ -191,6 +191,14 @@ def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
     "Builder builder, OperationState &result, Value comp, StringRef name">];
   let arguments = (ins I32:$comp, StrAttr:$name);
   let results = (outs I32:$res);
+  let extraClassDeclaration = [{
+		StringRef getName(){
+			return getAttr("name").cast<StringAttr>().getValue();
+		};
+    Value getCompHandler(){
+      return getOperand();
+    };
+  }];
 }
 
 def AnyScalarOrTensor : TypeConstraint<Or<[AnySignlessInteger.predicate,

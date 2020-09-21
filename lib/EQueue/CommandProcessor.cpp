@@ -118,7 +118,7 @@ int getMemVolume(mlir::Value memRef){
 
 uint64_t modelOp(const uint64_t &time, OpEntry &c)
 {
-  LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op\n");
+  LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op: "<<to_string(c.op)<<"\n");
   mlir::Operation *op = c.op;
   uint64_t execution_time = 1;
   if (auto Op = mlir::dyn_cast<xilinx::equeue::CreateMemOp>(op)) {
@@ -133,6 +133,8 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
       deviceMap[key] = std::make_unique<xilinx::equeue::DRAM>(deviceId++, dlines, dtype);
     else if (Op.getMemType() == "SRAM")
       deviceMap[key] = std::make_unique<xilinx::equeue::SRAM>(deviceId++, dlines, dtype);
+    else if (Op.getMemType() == "RegisterFile")
+      deviceMap[key] = std::make_unique<xilinx::equeue::RegisterFile>(deviceId++, dlines, dtype);
     else
       llvm_unreachable("No such memory type.\n");
   }
@@ -282,18 +284,6 @@ void finishOp(LauncherTable &l, uint64_t time, uint64_t pid)
       for(auto iter = c.mem_tids.begin(); iter != c.mem_tids.end(); iter++){
         emitTraceEvent(traceStream, opStr, "memory", "E", time, *iter, 1);
       }
-
-      // if (c.compute_xfer_cost && c.compute_op_cost) {
-      //   if (c.compute_op_cost >= c.compute_xfer_cost) {
-      //     emitTraceEvent(traceStream, "compute_bound", "equeue", "B", c.start_time, 0, TRACE_PID_EQUEUE);
-      //     emitTraceEvent(traceStream, "compute_bound", "equeue", "E", c.end_time, 0, TRACE_PID_EQUEUE);
-      //   }
-      //   else {
-      //     emitTraceEvent(traceStream, "memory_bound", "equeue", "B", c.start_time, 0, TRACE_PID_EQUEUE);
-      //     emitTraceEvent(traceStream, "memory_bound", "equeue", "E", c.end_time, 0, TRACE_PID_EQUEUE);
-      //   }
-      // }
-
       // set op_entry to empty
       OpEntry entry;
       l.op_entry = entry;
@@ -621,9 +611,7 @@ void buildIdMap(mlir::FuncOp &toplevel){
         iterInitValue.insert({*arg_it, valueIds[operand]});
         arg_it += 1;
       }
-    }
-    //build value id map
-    if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
+    } else if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
       auto arg_it = block.args_begin();
       for ( Value operand : Op.getLaunchOperands() ){
         valueIds.insert({*arg_it, valueIds[operand]});
@@ -634,8 +622,25 @@ void buildIdMap(mlir::FuncOp &toplevel){
         valueIds.insert({argument, argument});
     }
     for (Operation &operation : block) {
-      for (Value result : operation.getResults())
-        valueIds.insert({result, result});
+      if(auto Op = llvm::dyn_cast<xilinx::equeue::GetCompOp>(operation)){
+        auto create_comp = valueIds[Op.getCompHandler()];
+        auto name = Op.getName();
+        Value comp;
+        for(auto comp_op: create_comp.getDefiningOp()->getOperands()){
+          if(comp_op.getDefiningOp()->getAttr("name").cast<StringAttr>().getValue()==name){
+            comp = comp_op;
+            break;
+          }
+        }
+            llvm::outs()<<"here "<<comp<<"\n";
+            llvm::outs()<<operation.getResult(0)<<"\n";
+        valueIds.insert({operation.getResult(0), comp});
+        
+      }else{
+        for (Value result : operation.getResults()){
+          valueIds.insert({result, result});
+        }
+      }
     }
   });
 }
