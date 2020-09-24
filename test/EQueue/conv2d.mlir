@@ -217,6 +217,7 @@ module {
       "equeue.dealloc"(%24, %25, %23) : (!equeue.container<tensor<5x5xf32>, f32>, !equeue.container<tensor<12x12xf32>, f32>, !equeue.container<tensor<16x16xf32>, f32>) -> ()
       "equeue.return"(%63) : (tensor<12x12xf32>) -> ()
     }) : (!equeue.signal, i32, i32, tensor<16x16xf32>, tensor<5x5xf32>) -> (!equeue.signal, tensor<12x12xf32>)
+    "equeue.await"(%done) : (!equeue.signal) -> ()
     return %res : tensor<12x12xf32>
   }
 }

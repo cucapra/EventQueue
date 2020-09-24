@@ -212,6 +212,7 @@ void MLIRGenImpl::simpleGenerator(){
       dealloc_op(ValueRange{wbuffer, obuffer, ibuffer});
       return_op(ValueRange{output});
   });
+  await_op(ValueRange{res[0]});
   builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
   //std_ret().addoperands(res[0]);
   /// ------ end ---------

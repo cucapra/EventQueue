@@ -188,7 +188,7 @@ struct Memory : public Device {
 };
 struct RegisterFile : public Memory {
    RegisterFile(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 64 Byte, dlines, dtype, 
-        1, 0) {}
+        1, 1) {}
 };
 struct SRAM : public Memory {
    SRAM(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 10 KB, dlines, dtype, 
