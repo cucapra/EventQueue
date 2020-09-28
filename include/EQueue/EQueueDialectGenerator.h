@@ -1,7 +1,6 @@
 #ifndef EQUEUEDIALECT_GENERATOR_H
 #define EQUEUEDIALECT_GENERATOR_H
 
-#include "mlir/EDSC/Builders.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
@@ -19,11 +18,21 @@
 #include "EQueue/EQueueOps.h"
 #include "EQueue/EQueueTraits.h"
 
+#include "mlir/EDSC/Builders.h"
+#include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Linalg/EDSC/Builders.h"
+#include "mlir/Dialect/Linalg/EDSC/Intrinsics.h"
+#include "mlir/Dialect/SCF/EDSC/Intrinsics.h"
+#include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
+#include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
+
 
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
 using namespace mlir::edsc;
+using namespace mlir::edsc::intrinsics;
+
 class MLIRGenImpl {
 public:
   MLIRGenImpl(mlir::MLIRContext &context) : builder(&context) {}

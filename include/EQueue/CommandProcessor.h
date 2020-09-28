@@ -62,6 +62,7 @@ struct OpEntry{
 };
 #define EVENT_QUEUE_SIZE 2
 struct LauncherTable {
+  bool host = false;
   OpEntry op_entry;
   
   mlir::Block *block;
@@ -76,14 +77,10 @@ struct LauncherTable {
     next_iter = b->begin();
   }
   bool add_event_queue(mlir::Operation *o){
-    if(event_queue.size()==EVENT_QUEUE_SIZE) return false;
+    if(!host && event_queue.size()==EVENT_QUEUE_SIZE) return false;
     else event_queue.push_back(o);
     return true;
   }
-  // bool operator==(const CommandQueueEntry& m) const {
-  //       return (m.op == op);
-  // }
-  //TODO
   LauncherTable()
     : op_entry(), block(nullptr) { }
 };

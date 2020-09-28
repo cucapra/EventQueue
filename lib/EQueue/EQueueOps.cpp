@@ -12,7 +12,10 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Traits.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/AffineExpr.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/FunctionImplementation.h"
@@ -20,11 +23,9 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
-
-#include "mlir/Dialect/Traits.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/EDSC/Builders.h"
+
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -35,23 +36,33 @@ using namespace xilinx::equeue;
 // CreateDMAOp 
 //===-------------------------------------------------
 //===----------------------------------------------------------------------===//
-void CreateDMAOp::build(Builder builder, OperationState &result) {
+void CreateDMAOp::build(Builder builder, OperationState &result, StringRef name) {
+	result.addAttribute("name", builder.getStringAttr(name));
 	auto i32Type = IntegerType::get(32, builder.getContext());
 	result.types.push_back(i32Type);
-}
-void print(OpAsmPrinter &p, CreateDMAOp op) {
-  p << "\"equeue.create_dma\"():()->i32";
 }
 
 //===----------------------------------------------------------------------===//
 // CreateMemOp 
 //===----------------------------------------------------------------------===//
+void CreateMemOp::build(Builder builder, OperationState &result, StringRef name, 
+	ArrayRef<int64_t> shape, StringRef data, StringRef type) {
+	result.addAttribute("name", builder.getStringAttr(name));
+	//TODO: depend on input type
+	result.addAttribute("shape", builder.getI64TensorAttr(shape));
+	result.addAttribute("data", builder.getStringAttr(data));
+	result.addAttribute("type", builder.getStringAttr(type));
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
+
 static ParseResult parseCreateMemOp(OpAsmParser &parser,
                                      OperationState &result) {
 	Attribute extentsRaw;
-		StringRef data, type;
+  StringRef name, data, type;
 	NamedAttrList dummy;
-	if (parser.parseAttribute(extentsRaw, "shape", dummy) || 
+	if (parser.parseKeyword(&name) || parser.parseComma() || 
+	    parser.parseAttribute(extentsRaw, "shape", dummy) || 
 			parser.parseComma() || parser.parseKeyword(&data) || 
 			parser.parseComma() || parser.parseKeyword(&type))
 		return failure();
@@ -66,6 +77,7 @@ static ParseResult parseCreateMemOp(OpAsmParser &parser,
 		ints.push_back(attr.getInt());
 	}
 	Builder &builder = parser.getBuilder();
+	result.addAttribute("name",  parser.getBuilder().getStringAttr(name));
 	result.addAttribute("shape", builder.getI64TensorAttr(ints));
 	result.addAttribute("data", parser.getBuilder().getStringAttr(data));
 	result.addAttribute("type", parser.getBuilder().getStringAttr(type));
@@ -78,34 +90,70 @@ static ParseResult parseCreateMemOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // CreateProcOp 
 //===----------------------------------------------------------------------===//
+void CreateProcOp::build(Builder builder, OperationState &result, StringRef name, 
+  StringRef type) {
+	result.addAttribute("name", builder.getStringAttr(name));
+	result.addAttribute("type", builder.getStringAttr(type));
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
 static ParseResult parseCreateProcOp(OpAsmParser &parser,
                                      OperationState &result) {
-	StringRef type;
-	if (parser.parseKeyword(&type))
+	StringRef name, type;
+	if (parser.parseKeyword(&name) || parser.parseComma() || parser.parseKeyword(&type) )
 		return failure();
 
 	Builder &builder = parser.getBuilder();
-		result.addAttribute("type", parser.getBuilder().getStringAttr(type));
-		auto i32Type = IntegerType::get(32, builder.getContext());
-		result.types.push_back(i32Type);
+  result.addAttribute("name", parser.getBuilder().getStringAttr(name));
+  result.addAttribute("type", parser.getBuilder().getStringAttr(type));
+  auto i32Type = IntegerType::get(32, builder.getContext());
+  result.types.push_back(i32Type);
 	return success();
 }
+//===----------------------------------------------------------------------===//
+// CreateCompOp 
+//===----------------------------------------------------------------------===//
+void CreateCompOp::build(Builder builder, OperationState &result, StringRef name, ValueRange comps) {
+  result.addOperands(comps);
+	result.addAttribute("name", builder.getStringAttr(name));
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
 
-
-
+//===----------------------------------------------------------------------===//
+// GetCompOp 
+//===----------------------------------------------------------------------===//
+void GetCompOp::build(Builder builder, OperationState &result, Value comp, StringRef name) {
+  result.addOperands(comp);
+	result.addAttribute("name", builder.getStringAttr(name));
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
 
 //===----------------------------------------------------------------------===//
 // MemAllocOp 
 //===----------------------------------------------------------------------===//
+void MemAllocOp::build(Builder builder, OperationState &result, Value mem, 
+	ArrayRef<int64_t> shape, StringRef data, Type tensorDataType) {
+  result.addOperands(mem);
+	result.addAttribute("shape", builder.getI64TensorAttr(shape));
+	result.addAttribute("data", builder.getStringAttr(data));
+  auto tensorType =  RankedTensorType::get(
+        shape, tensorDataType);
+	auto f32Type = FloatType::getF32(builder.getContext());
+	auto memrefType = MemRefType::get(shape, f32Type, {}, 0);
+	result.types.push_back(memrefType);
+}
+
 static ParseResult parseMemAllocOp(OpAsmParser &parser,
                                      OperationState &result) {
 	Builder &builder = parser.getBuilder();
-		OpAsmParser::OperandType mem;
-		Attribute extentsRaw;
-		StringRef data;
+  OpAsmParser::OperandType mem;
+  Attribute extentsRaw;
+  StringRef data;
 	NamedAttrList dummy;
 	auto i32Type = IntegerType::get(32, builder.getContext());
-		Type resType;
+  Type resType;
 	if ( parser.parseOperand(mem) || parser.parseComma() ||
 		parser.resolveOperand(mem, i32Type, result.operands) || 
 		parser.parseAttribute(extentsRaw, "shape", dummy) ||
@@ -133,13 +181,17 @@ static ParseResult parseMemAllocOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // MemDeallocOp 
 //===----------------------------------------------------------------------===//
+void MemDeallocOp::build(Builder builder, OperationState &result, ValueRange buffer) {
+  result.addOperands(buffer);
+}
+
 static ParseResult parseMemDeallocOp(OpAsmParser &parser,
                                      OperationState &result) {
   Builder &builder = parser.getBuilder();
 	//OpAsmParser::OperandType signal;
 	//auto signalType = EQueueSignalType::get(builder.getContext());
- 	SmallVector<OpAsmParser::OperandType, 8> buffers;
-	SmallVector<Type, 8> types;
+ 	SmallVector<OpAsmParser::OperandType, 16> buffers;
+	SmallVector<Type, 16> types;
   if (  //parser.parseOperand(signal) || parser.parseComma() || 
 		//parser.resolveOperand(signal, signalType, result.operands) ||
 		parser.parseOperandList(buffers) ||  
@@ -150,10 +202,60 @@ static ParseResult parseMemDeallocOp(OpAsmParser &parser,
 	//result.types.push_back(signalType);
 	return success();
 }
+
+//===----------------------------------------------------------------------===//
+// MemWriteOp 
+//===----------------------------------------------------------------------===//
+void MemWriteOp::build(Builder builder, OperationState &result, Value value, ValueRange buffer) {
+  result.addOperands(value);
+  result.addOperands(buffer);
+}
+//===----------------------------------------------------------------------===//
+// MemReadOp 
+//===----------------------------------------------------------------------===//
+void MemReadOp::build(Builder builder, OperationState &result, Value buffer, ValueRange index) {
+  result.addOperands(buffer);
+  result.addOperands(index);
+  auto memrefType = buffer.getType().cast<MemRefType>();
+  if(index.size() >= 1 || (memrefType.getShape().size() == 1 && memrefType.getShape()[0]==1) ){
+	  result.types.push_back(memrefType.getElementType());//scalar
+	}else{
+	  auto tensorType = RankedTensorType::get(memrefType.getShape(), memrefType.getElementType());
+	  result.types.push_back(tensorType);//tensor
+	}
+	
+}
+
 //===----------------------------------------------------------------------===//
 // LaunchOp 
-//===-------------------------------------------------
 //===----------------------------------------------------------------------===//
+//XXX(Zhijing): not sure about bodyBuilder yet
+// also, why opbuilder, not builder, what's the difference?
+void LaunchOp::build(OpBuilder builder, OperationState &result, Value start, Value device,
+  ValueRange operands, function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuilder) {
+  result.addOperands(start);
+  result.addOperands(device);
+  result.addOperands(operands);
+  Region *bodyRegion = result.addRegion();
+  Block *bodyBlock = new Block;
+  for(auto operand: operands){
+    bodyBlock->addArgument(operand.getType());
+  }
+  bodyRegion->push_back(bodyBlock);
+
+  
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(bodyBlock);
+  bodyBuilder(builder, result.location, bodyBlock->getArguments());
+  //TODO:verify it is a return op
+  Operation *returnOp = bodyBlock->getTerminator();
+  
+	auto signalType = EQueueSignalType::get(builder.getContext());
+	result.types.push_back(signalType); 
+	result.types.append(returnOp->getOperands().getTypes().begin(),
+	  returnOp->getOperands().getTypes().end());
+  
+}
 static ParseResult parseLaunchOp(OpAsmParser &parser,
                                      OperationState &result) {
 	Builder &builder = parser.getBuilder();
@@ -207,6 +309,62 @@ static ParseResult parseLaunchOp(OpAsmParser &parser,
 }
 
 
+//===----------------------------------------------------------------------===//
+// ReturnOp 
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// MemCopyOp 
+//===----------------------------------------------------------------------===//
+void MemCopyOp::build(Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset) {
+  result.addOperands(start);
+  result.addOperands(src_buffer);
+  result.addOperands(dest_buffer);
+  result.addOperands(dma);
+  result.addOperands(offset);
+	auto signalType = EQueueSignalType::get(builder.getContext());
+  result.types.push_back(signalType);
+}
+
+
+
+
+
+//===----------------------------------------------------------------------===//
+// ControlStartOp 
+//===----------------------------------------------------------------------===//
+void ControlStartOp::build(Builder builder, OperationState &result) {
+	auto signalType = EQueueSignalType::get(builder.getContext());
+  result.types.push_back(signalType);
+}
+
+
+//===----------------------------------------------------------------------===//
+// ControlAndOp 
+//===----------------------------------------------------------------------===//
+void ControlAndOp::build(Builder builder, OperationState &result, ValueRange signals) {
+  result.addOperands(signals);
+	auto signalType = EQueueSignalType::get(builder.getContext());
+  result.types.push_back(signalType);
+}
+
+
+//===----------------------------------------------------------------------===//
+// ControlOrOp 
+//===----------------------------------------------------------------------===//
+void ControlOrOp::build(Builder builder, OperationState &result, ValueRange signals) {
+  result.addOperands(signals);
+	auto signalType = EQueueSignalType::get(builder.getContext());
+  result.types.push_back(signalType);
+}
+
+
+//===----------------------------------------------------------------------===//
+// AwaitOp 
+//===----------------------------------------------------------------------===//
+void AwaitOp::build(Builder builder, OperationState &result, ValueRange signals) {
+  result.addOperands(signals);
+}
 namespace xilinx {
 namespace equeue {
 #define GET_OP_CLASSES

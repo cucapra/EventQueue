@@ -186,14 +186,17 @@ struct Memory : public Device {
         return -1;
     }
 };
-
+struct RegisterFile : public Memory {
+   RegisterFile(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 64 Byte, dlines, dtype, 
+        1, 1) {}
+};
 struct SRAM : public Memory {
    SRAM(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 10 KB, dlines, dtype, 
-        5, 2) {}
+        10, 2) {}
 };
 struct DRAM : public Memory {
    DRAM(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 512 MB, dlines, dtype, 
-        40, 5) {}
+        100, 5) {}
 };
 
 } // namespace equeue
