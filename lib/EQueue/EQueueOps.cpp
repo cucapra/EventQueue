@@ -141,8 +141,8 @@ void MemAllocOp::build(Builder builder, OperationState &result, Value mem,
   auto tensorType =  RankedTensorType::get(
         shape, tensorDataType);
 	auto f32Type = FloatType::getF32(builder.getContext());
-	auto containerType = EQueueContainerType::get(tensorType, f32Type);
-	result.types.push_back(containerType);
+	auto memrefType = MemRefType::get(shape, f32Type, {}, 0);
+	result.types.push_back(memrefType);
 }
 
 static ParseResult parseMemAllocOp(OpAsmParser &parser,
@@ -190,8 +190,8 @@ static ParseResult parseMemDeallocOp(OpAsmParser &parser,
   Builder &builder = parser.getBuilder();
 	//OpAsmParser::OperandType signal;
 	//auto signalType = EQueueSignalType::get(builder.getContext());
- 	SmallVector<OpAsmParser::OperandType, 8> buffers;
-	SmallVector<Type, 8> types;
+ 	SmallVector<OpAsmParser::OperandType, 16> buffers;
+	SmallVector<Type, 16> types;
   if (  //parser.parseOperand(signal) || parser.parseComma() || 
 		//parser.resolveOperand(signal, signalType, result.operands) ||
 		parser.parseOperandList(buffers) ||  
@@ -211,17 +211,16 @@ void MemWriteOp::build(Builder builder, OperationState &result, Value value, Val
   result.addOperands(buffer);
 }
 //===----------------------------------------------------------------------===//
-// MemWriteOp 
+// MemReadOp 
 //===----------------------------------------------------------------------===//
-//XXX(Zhijing): tensorType does not store elementtype, so there is no "get" function to get the elementype get
-// the only thing we can do is to explicit give a type
-void MemReadOp::build(Builder builder, OperationState &result, Value container, Type type, ValueRange index) {
-  result.addOperands(container);
+void MemReadOp::build(Builder builder, OperationState &result, Value buffer, ValueRange index) {
+  result.addOperands(buffer);
   result.addOperands(index);
-  auto tensorType = container.getType().cast<EQueueContainerType>().getValueType().cast<RankedTensorType>();
-  if(index.size() >= 1 || (tensorType.getShape().size() == 1 && tensorType.getShape()[0]==1) ){
-	  result.types.push_back(type);//scalar
+  auto memrefType = buffer.getType().cast<MemRefType>();
+  if(index.size() >= 1 || (memrefType.getShape().size() == 1 && memrefType.getShape()[0]==1) ){
+	  result.types.push_back(memrefType.getElementType());//scalar
 	}else{
+	  auto tensorType = RankedTensorType::get(memrefType.getShape(), memrefType.getElementType());
 	  result.types.push_back(tensorType);//tensor
 	}
 	

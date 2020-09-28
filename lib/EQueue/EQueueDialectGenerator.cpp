@@ -55,9 +55,9 @@ void MLIRGenImpl::simpleGenerator(){
 
   //auto indexType = IndexType::get(&context);
   auto f32Type = builder.getF32Type();
-  auto ifmapType = RankedTensorType::get({16,16}, f32Type);
+  auto ifmapType = RankedTensorType::get({7,7}, f32Type);
   auto filterType = RankedTensorType::get({5,5}, f32Type);
-  auto ofmapType = RankedTensorType::get({12,12}, f32Type);
+  auto ofmapType = RankedTensorType::get({3,3}, f32Type);
   auto f =
       makeFunction("graph", {ofmapType}, {ifmapType, filterType});
   theModule.push_back(f);
@@ -100,9 +100,9 @@ void MLIRGenImpl::simpleGenerator(){
       processor = get_comp(accel, "proc");
       dma = get_comp(accel, "dma");
       sram = get_comp(accel, "mem");
-      Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{ 16,16 }, "f32", f32Type);
+      Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{ 7,7 }, "f32", f32Type);
       Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{ 5,5 }, "f32", f32Type);
-      Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 12,12 }, "f32", f32Type);
+      Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 3,3 }, "f32", f32Type);
       write_op(ifmap, ibuffer);
       
       //Value start_cpy = builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
@@ -134,7 +134,7 @@ void MLIRGenImpl::simpleGenerator(){
       }
       
       Value lb = std_constant_index(0);
-      Value ub = std_constant_index(12);
+      Value ub = std_constant_index(3);//ifmap height
       Value step = std_constant_index(1);
       
       SmallVector<Value, 5> pe_signals(5,step);
@@ -142,13 +142,14 @@ void MLIRGenImpl::simpleGenerator(){
       auto col_signal = loopNestBuilder(lb, ub, step, {signal}, [&](Value iv0, ValueRange args0) {
         
         for(int i = 0; i<5; i++){
-          pe_signals[i] = memcpy_op(signal, ibuffer, ibuffer2s[i], dma);
+          pe_signals[i] = memcpy_op(args0[0], ibuffer, ibuffer2s[i], dma);
           Value const0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
           write_op(const0, obuffer2s[i]);
         }
+        
         signal = control_and(pe_signals);
         lb = std_constant_index(0);
-        ub = std_constant_index(12);
+        ub = std_constant_index(3);//ifmap width
         step = std_constant_index(1);
         auto row_signal = loopNestBuilder(lb, ub, step, {signal}, [&](Value iv1, ValueRange args1) {
           for(int i = 0; i < 5; i++){
@@ -176,10 +177,10 @@ void MLIRGenImpl::simpleGenerator(){
               ub = std_constant_index(5);
               step = std_constant_index(1);
               loopNestBuilder(lb, ub, step, {}, [&](Value iv2, ValueRange args2) {
-                ifmap = read_op(ins2[0], f32Type, iv2);
-                filter = read_op(ins2[1], f32Type, iv2);
+                ifmap = read_op(ins2[0], iv2);
+                filter = read_op(ins2[1], iv2);
                 Value mul = std_mulf(ifmap, filter);
-                ofmap = read_op(ins2[2], f32Type);
+                ofmap = read_op(ins2[2]);
                 ofmap = std_addf(ofmap, mul);
                 write_op(ofmap, ins2[2]);
                 return scf::ValueVector{};
@@ -194,8 +195,8 @@ void MLIRGenImpl::simpleGenerator(){
               signal = control_and(ValueRange{pe_signals[i], pe_signals[i-1]});
               row_done = LaunchOpBuilder(signal, proc, ValueRange{obuffer2s[i-1], obuffer2s[i]}, 
               [&](ValueRange ins2){
-                Value psum1 = read_op(ins2[0], f32Type);
-                Value psum2 = read_op(ins2[1], f32Type);
+                Value psum1 = read_op(ins2[0]);
+                Value psum2 = read_op(ins2[1]);
                 ofmap = std_addf(psum1, psum2);
                 write_op(ofmap, ins2[1]);
                 return_op(ValueRange{});
@@ -208,7 +209,7 @@ void MLIRGenImpl::simpleGenerator(){
         return row_signal;
       });//seq for (col)
       await_op(ValueRange{col_signal[0]});
-      Value output = read_op(obuffer, f32Type);
+      Value output = read_op(obuffer);
       dealloc_op(ValueRange{wbuffer, obuffer, ibuffer});
       return_op(ValueRange{output});
   });

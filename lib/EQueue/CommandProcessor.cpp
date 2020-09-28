@@ -416,17 +416,22 @@ bool waitForSignal(mlir::Operation* op, mlir::Value in){
     auto init_value_cycle = 1;
     if(init_signal.getDefiningOp())
       init_value_cycle = blockExs[init_signal.getDefiningOp()->getBlock()];
-    if( opMap[op] >= op_block_cycle * valueMap[init_signal] / init_value_cycle ){
+    if( opMap[op] * init_value_cycle >= op_block_cycle * valueMap[init_signal] ){
       LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] op not enough for init value"<<"\n");
       return true;
     }
-    if(opMap[op] >= op_block_cycle * ( valueMap[signal] + 1) / in_block_cycle){
+    //however, init signal is not necessary in the same block as signal 
+    //normalized it
+    if( (float)opMap[op]/ (float)op_block_cycle >=  (float)valueMap[signal] / (float)in_block_cycle
+       + 1.0 / (float)init_value_cycle  ){
       LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] op not enough for updated value"<<"\n");
+      LLVM_DEBUG(llvm::dbgs()<<opMap[op]<< " "<<valueMap[signal] << " " <<
+        op_block_cycle << " " << in_block_cycle<<"\n");
       return true;
     }
   }else{
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] signal generated, inital value"<<"\n");
-    if(opMap[op] >= op_block_cycle * valueMap[signal] / in_block_cycle){
+    if(opMap[op] * in_block_cycle >= op_block_cycle * valueMap[signal] ){
       return true;
     }
   }

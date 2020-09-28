@@ -23,8 +23,8 @@ def EQueue_SignalType :
     Type<CPred<"$_self.isa<EQueueSignalType>()">, "equeue signal type">;
 // Provide a definition for the EQueueContainerType for use in ODS. This allows for
 // using EQueueContainerType in a similar way to Tensor or MemRef.
-def EQueue_ContainerType :
-    Type<CPred<"$_self.isa<EQueueContainerType>()">, "equeue container type">;
+//def EQueue_ContainerType :
+//    Type<CPred<"$_self.isa<EQueueContainerType>()">, "equeue container type">;
 
 
 def EQueue_MemRegister : StrEnumAttrCase<"RegisterFile">;
@@ -210,7 +210,6 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
 	let summary = "Alloc memory of given size on memory component.";
   let description = [{
     Returns a buffer representing a reference to a particular memory space. 
-    The type of memory buffer is `::equeue::ContainerType`
     This operation takes in a memory handler as operand. Together with attributes 
     of memory buffer, the operation models a buffer allocation process and 
     returns a buffer.
@@ -219,7 +218,7 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
 
     ```mlir
     %1 = equeue.create_mem [1024], f32, SRAM
-    %2 = equeue.alloc %1, [5], f32 : !equeue.container<tensor<5xf32>, i32>
+    %2 = equeue.alloc %1, [5], f32 : memref<5xf32>
     ```
   }];
   let builders = [OpBuilder<
@@ -227,7 +226,7 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
     "StringRef data, Type tensorDataType"
 	>];
 	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, StrAttr:$data);
-	let results = (outs EQueue_ContainerType: $buffer);
+	let results = (outs AnyMemRef: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
   let extraClassDeclaration = [{
 		SmallVector<int, 8> getShape(){
@@ -254,14 +253,14 @@ def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {
 
     ```mlir
     %1 = equeue.create_mem [1024], f32, SRAM
-    %2 = equeue.alloc %1, [5], f32 : !equeue.container<tensor<5xf32>, i32>
-    equeue.dealloc %2: !equeue.container<tensor<5xf32>, i32>
+    %2 = equeue.alloc %1, [5], f32 : memref<5xf32>
+    equeue.dealloc %2: memref<5xf32>
     ```
   }];
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, ValueRange buffer"
 	>];
-	let arguments = (ins Variadic<EQueue_ContainerType>: $buffer);
+	let arguments = (ins Variadic<AnyMemRef>: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
@@ -274,16 +273,16 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
     Example:
     ```mlir
     %1 = equeue.create_mem [1024], f32, SRAM
-    %2 = equeue.alloc %1, [1], f32 : !equeue.container<f32, i32>
+    %2 = equeue.alloc %1, [1], f32 : memref<f32, i32>
     %3 = std.constant 10: f32
-    "equeue.write"(%3, %2): (f32, !equeue.container<f32, i32>)->()
+    "equeue.write"(%3, %2): (f32, memref<f32, i32>)->()
     ```
   }];
 
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value value, ValueRange buffer"
 	>];
-  let arguments = (ins AnyScalarOrTensor: $value, EQueue_ContainerType: $buffer);
+  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer);
   let extraClassDeclaration = [{
     Value getBuffer(){
       return getOperand(1);
@@ -293,20 +292,20 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
 }
 
 def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
-  let summary = "read data from container at certain index.";
+  let summary = "read data from buffer at certain index.";
   let description = [{
     This operation takes in a memory buffer and an offset of variable number.
     Returns the value read from the buffer given certain offset 
 
     Example:
     ```mlir
-    %value = "equeue.read" (%buffer, %j):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
+    %value = "equeue.read" (%buffer, %j):(memref<5xf32>, index)->f32 
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value container, Type type, ValueRange index = ValueRange{}"
+    "Builder builder, OperationState &result, Value buffer, ValueRange index = ValueRange{}"
 	>];
-  let arguments = (ins EQueue_ContainerType: $container, Variadic<Index>:$index);
+  let arguments = (ins AnyMemRef: $buffer, Variadic<Index>:$index);
   let results = (outs AnyScalarOrTensor: $res);
   let extraClassDeclaration = [{
     Value getBuffer(){
@@ -340,24 +339,24 @@ def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"Return
     Example:
     ```mlir
     %done = equeue.launch (%1, %2, %3, %4 = %act_mem, %weight_mem, %ofmap_mem, %k: 
-    !equeue.container<tensor<5xf32>, i32>, !equeue.container<tensor<5xf32>, i32>, 
-    !equeue.container<f32, i32>, index) 
+    memref<5xf32>, memref<5xf32>, 
+    memref<5xf32>, index) 
     in (%start, %core_device)  
     {
       %c0 = constant 0.0:f32
-      "equeue.write"(%c0, %3): (f32, !equeue.container<f32, i32>)->()
+      "equeue.write"(%c0, %3): (f32, memref<5xf32>)->()
       %cst0 = constant 0:index
       %cst1 = constant 1:index
       %cst5 = constant 2:index
       scf.for %i = %cst0 to %cst5 step %cst1 {
         %j = affine.apply affine_map<(d0,d1)->(d0+d1)>(%offset,%i)
-        %ifmap = "equeue.read" (%1,%j):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
-        %filter = "equeue.read" (%2,%i):(!equeue.container<tensor<5xf32>, i32>, index)->f32 
-        %ofmap = "equeue.read" (%3):(!equeue.container<f32, i32>) -> f32
+        %ifmap = "equeue.read" (%1,%j):(memref<5xf32>, index)->f32 
+        %filter = "equeue.read" (%2,%i):(memref<5xf32>, index)->f32 
+        %ofmap = "equeue.read" (%3):(memref<5xf32>) -> f32
         %psum = mulf %filter, %ifmap: f32
         %ofmap_flight = addf %ofmap, %psum: f32
 
-        "equeue.write"( %ofmap_flight, %3):(f32, !equeue.container<f32, i32>)->()
+        "equeue.write"( %ofmap_flight, %3):(f32, memref<5xf32>)->()
         "scf.yield"():()->()
       }	
       "equeue.return"():()->()
@@ -426,7 +425,7 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     Example:
     ```mlir
     %done = "equeue.memcpy"(%start, %src_buffer, %dest_buffer, %dma): (!equeue.signal, 
-    !equeue.container<tensor<5xf32>,i32>, !equeue.container<tensor<5xf32>,i32>, i32) -> 
+    memref<5xf32>, memref<5xf32>) -> 
     !equeue.signal		
     ```
 
@@ -437,11 +436,11 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     Example:
     ```mlir
     %done = equeue.launch (%1, %2 = %sram_buffer, %dram_buffer: 
-    !equeue.container<tensor<5xf32>, i32>, !equeue.container<tensor<5xf32>, i32>) 
+    memref<5xf32>, memref<5xf32>, i32>) 
     in (%start, %dma)  
     {
-      %3 = "equeue.read"(%1):(!equeue.container<tensor<5xf32>, i32>)-> tensor<5xf32>
-      "equeue.write"( %3, %1):(tensor<5xf32>, !equeue.container<f32, i32>)->()
+      %3 = "equeue.read"(%1):(memref<5xf32>)-> tensor<5xf32>
+      "equeue.write"( %3, %1):(tensor<5xf32>, memref<5xf32>)->()
       "equeue.return"():()->()
     }	
     ```
@@ -449,7 +448,7 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset = ValueRange{}"
 	>];
-  let arguments = (ins EQueue_SignalType: $start, EQueue_ContainerType: $src_buffer, EQueue_ContainerType: $dest_buffer, I32:$dma, Optional<Index>:$offset);
+  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, Optional<Index>:$offset);
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
     Value getDMAHandler(){
