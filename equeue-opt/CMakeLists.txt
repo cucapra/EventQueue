@@ -5,6 +5,8 @@ set(LIBS
         ${conversion_libs}
         MLIROptLib
         MLIREQueue
+        EQueueGenerator
+        EQueueEDSC
         )
 add_llvm_executable(equeue-opt equeue-opt.cpp)
 llvm_update_compile_flags(equeue-opt)

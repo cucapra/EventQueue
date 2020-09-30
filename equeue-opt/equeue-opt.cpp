@@ -39,7 +39,7 @@
 #include "EQueue/EQueueDialect.h"
 #include "EQueue/EQueueTraits.h"
 #include "EQueue/CommandProcessor.h"
-#include "EQueue/EQueueDialectGenerator.h"
+#include "Generator/EQueueGenerator.h"
 
 static llvm::cl::opt<bool> generateInputFile(
     "generate",
