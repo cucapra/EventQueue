@@ -56,10 +56,10 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, StringRef name, ArrayRef<int64_t> shape, StringRef data, StringRef type"
+    "Builder builder, OperationState &result, StringRef name, ArrayRef<int64_t> shape, StringRef data, StringRef type, int64_t banks=1"
     >
   ];
-  let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type);
+  let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type, OptionalAttr<I32Attr>:$banks);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
@@ -77,6 +77,13 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
     };
     StringRef getMemType(){
       return getAttr("type").cast<StringAttr>().getValue();
+    };
+    int64_t getBank(){
+      if(getAttr("bank")){
+        return getAttr("bank").cast<IntegerAttr>().getInt();
+      }else{
+        return 1;
+      }
     };
   }];
 }
@@ -280,12 +287,19 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value value, ValueRange buffer"
+    "Builder builder, OperationState &result, Value value, ValueRange buffer, int64_t bank = 0"
 	>];
-  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer);
+  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, OptionalAttr<I32Attr>: $bank);
   let extraClassDeclaration = [{
     Value getBuffer(){
       return getOperand(1);
+    };
+    int64_t getBank(){
+      if(getAttr("bank")){
+        return getAttr("bank").cast<IntegerAttr>().getInt();
+      }else{
+        return 0;
+      }
     };
   }];
 
@@ -303,9 +317,9 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value buffer, ValueRange index = ValueRange{}"
+    "Builder builder, OperationState &result, Value buffer, ValueRange index = ValueRange{}, int64_t bank = 0"
 	>];
-  let arguments = (ins AnyMemRef: $buffer, Variadic<Index>:$index);
+  let arguments = (ins AnyMemRef: $buffer, Variadic<Index>:$index, OptionalAttr<I32Attr>: $bank);
   let results = (outs AnyScalarOrTensor: $res);
   let extraClassDeclaration = [{
     Value getBuffer(){
@@ -313,10 +327,17 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
     };
     operand_range getIndex(){
       return {operand_begin() + 1, operand_end()};
-    }
+    };
     bool hasOffset(){
       return !getIndex().empty();
-    }
+    };
+    int64_t getBank(){
+      if(getAttr("bank")){
+        return getAttr("bank").cast<IntegerAttr>().getInt();
+      }else{
+        return 0;
+      }
+    };
   }];
 }
 
@@ -446,9 +467,12 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, ValueRange offset = ValueRange{}"
+    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, "
+    "ValueRange offset = ValueRange{}, int64_t src_bank = 0, int64_t dest_bank = 0"
 	>];
-  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, Optional<Index>:$offset);
+  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, 
+                       OptionalAttr<I32Attr>: $src_bank, OptionalAttr<I32Attr>: $dest_bank, I32:$dma, 
+                       Optional<Index>:$offset);
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
     Value getDMAHandler(){
@@ -459,6 +483,20 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     };
     Value getDestBuffer(){
       return getOperand(2);
+    };
+    int64_t getSrcBank(){
+      if(getAttr("src_bank")){
+        return getAttr("src_bank").cast<IntegerAttr>().getInt();
+      }else{
+        return 0;
+      }
+    };
+    int64_t getDestBank(){
+      if(getAttr("dest_bank")){
+        return getAttr("dest_bank").cast<IntegerAttr>().getInt();
+      }else{
+        return 0;
+      }
     };
   }];
 }

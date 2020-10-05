@@ -128,15 +128,17 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
       dlines *= s;
     }
     auto dtype = Op.getDataType().str();
+    auto banks = Op.getBank();
     auto key = valueIds[op->getResults()[0]];
     if (Op.getMemType() == "DRAM")
-      deviceMap[key] = std::make_unique<xilinx::equeue::DRAM>(deviceId++, dlines, dtype);
+      deviceMap[key] = std::make_unique<xilinx::equeue::DRAM>(deviceId, banks, dlines, dtype);
     else if (Op.getMemType() == "SRAM")
-      deviceMap[key] = std::make_unique<xilinx::equeue::SRAM>(deviceId++, dlines, dtype);
+      deviceMap[key] = std::make_unique<xilinx::equeue::SRAM>(deviceId, banks, dlines, dtype);
     else if (Op.getMemType() == "RegisterFile")
-      deviceMap[key] = std::make_unique<xilinx::equeue::RegisterFile>(deviceId++, dlines, dtype);
+      deviceMap[key] = std::make_unique<xilinx::equeue::RegisterFile>(deviceId, banks, dlines, dtype);
     else
       llvm_unreachable("No such memory type.\n");
+    deviceId++;
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::CreateDMAOp>(op)) {
     auto key = valueIds[op->getResults()[0]];
@@ -148,7 +150,8 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     c.mem_tids.push_back(mem->uid);
     execution_time = mem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Read);
-    return mem->scheduleEvent(time, execution_time, true);
+    int idx = Op.getBank();
+    return mem->scheduleEvent(idx, time, execution_time, true);
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemWriteOp>(op)) {
     int dlines = getMemVolume( Op.getBuffer() );
@@ -156,10 +159,11 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     c.mem_tids.push_back(mem->uid);
     execution_time = mem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Write);
-    return mem->scheduleEvent(time, execution_time, true);
+    int idx = Op.getBank();
+    return mem->scheduleEvent(idx, time, execution_time, true);
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemCopyOp>(op)) {
-    //TODO: calculate offset
+    //TODO: offset
     int srcLines = getMemVolume( Op.getSrcBuffer() );
     int destLines = getMemVolume( Op.getDestBuffer() );
     int dlines = std::min(srcLines, destLines);
@@ -178,7 +182,9 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     uint64_t dmaTime = dma->getTransferCycles(volume);
     execution_time = std::max({readTime, writeTime, dmaTime});
     //clean outdated events
-    return dma->scheduleEvent(time, execution_time, {destMem, srcMem});
+    int src_idx = Op.getSrcBank();
+    int dest_idx = Op.getSrcBank();
+    return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {destMem, srcMem});
   }
   if (  op->hasTrait<mlir::OpTrait::StructureOpTrait>() ||
         mlir::dyn_cast<mlir::ConstantOp>(op) ||

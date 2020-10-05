@@ -44,34 +44,43 @@ struct Device {
     //unique id
     uint64_t uid;
 
-    std::vector<std::pair<uint64_t, uint64_t>> events;
+    std::vector< std::vector<std::pair<uint64_t, uint64_t>> > events;
     //int clock_frequency;
     int energy;
     //int area;
-    Device(uint64_t id) : uid(id), energy(1) {
-        events.push_back(std::make_pair(0,0));
+    int equeues;
+    
+    
+    Device(uint64_t id, int eqs) : uid(id), energy(1), equeues(eqs) {
+        for(int i = 0; i < eqs; i++){
+            std::vector<std::pair<uint64_t, uint64_t>> event_queue;
+            event_queue.push_back(std::make_pair(0,0));
+            events.push_back(event_queue);
+        }
     }
     virtual ~Device() = default;
-    void deleteOutdatedEvents(uint64_t now_time){
-        auto it = events.begin();
-        for(; it != events.end(); it++){
-            if(it->first >= now_time)
+    void deleteOutdatedEvents(int idx, uint64_t now_time){
+        auto it = events[idx].begin();
+        for(; it != events[idx].end(); it++){
+            if(it->first >= now_time){
                 break;
-        }
-        events.erase(events.begin(), it);
-    }
-    uint64_t scheduleEvent(uint64_t start_time, uint64_t exec_time, bool cleanEvents=false){
-        auto iter = events.begin();
-        if (cleanEvents) deleteOutdatedEvents(start_time);
-        if(events.size()==1){
-            if(! (events.begin()->first < start_time+exec_time) ){
-                //the event cannot be scheduled at the begining
-                start_time = (events.begin()+1)->second + 1;
-                iter = events.begin()+1;
             }
-        }else if (events.size() > 1) {
+        }
+        events[idx].erase(events[idx].begin(), it);
+    }
+    //schedule the task on this device
+    uint64_t scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, bool cleanEvents=false){
+        auto iter = events[idx].begin();
+        if (cleanEvents) deleteOutdatedEvents(idx, start_time);
+        if(events[idx].size()==1){
+            if(! (events[idx].begin()->first < start_time+exec_time) ){
+                //the event cannot be scheduled at the begining
+                start_time = (events[idx].begin()+1)->second + 1;
+                iter = events[idx].begin()+1;
+            }
+        }else if (events[idx].size() > 1) {
             bool slotFound = false;
-            for(; iter+1 != events.end(); iter++){
+            for(; iter+1 != events[idx].end(); iter++){
                 if( iter->second < start_time && (iter+1)->first - iter->second > 
                     exec_time) {
                     start_time = iter->second+1;
@@ -82,29 +91,34 @@ struct Device {
             }
             if(!slotFound)
                 //the event cannot be scheduled at any slot, put to the end
-                start_time = (events.end()-1)->second + 1;
-                iter = events.end();
+                start_time = (events[idx].end()-1)->second + 1;
+                iter = events[idx].end();
         }
-        events.insert(iter, std::make_pair(start_time, start_time+exec_time));
+        events[idx].insert(iter, std::make_pair(start_time, start_time+exec_time));
         return start_time+exec_time;
     }
+    //schedule the task on multiple devices
     template <class T>
-    uint64_t  scheduleEvent(uint64_t start_time, uint64_t exec_time, std::initializer_list<T> dlist )
+    uint64_t  scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, std::vector<int> idx_list, std::initializer_list<T> dlist )
     {
         std::vector<uint64_t> start;
         start.push_back(start_time);
-        start.push_back( (events.end()-1)->second+1 );
+        start.push_back( (events[idx].end()-1)->second+1 );
+        int i = 0;
+        //schedule right after the latest end time of all events
         for( auto device : dlist )
         {
-            auto e = device->events;
+            auto e = device->events[idx_list[i++]];
             if(!e.empty())
                 start.push_back((e.end()-1)->second+1);
         }
         uint64_t start_t = *std::max_element(start.begin(), start.end());
-        events.push_back(std::make_pair(start_t, exec_time+start_t));
+        
+        events[idx].push_back(std::make_pair(start_t, exec_time+start_t));
+        i = 0;
         for( auto device : dlist )
         {
-            device->events.push_back(std::make_pair(start_t, exec_time+start_t));
+            device->events[idx_list[i++]].push_back(std::make_pair(start_t, exec_time+start_t));
         }
         return start_t + exec_time;
     }
@@ -119,7 +133,7 @@ struct DMA : public Device{
     int warmup_cycles;//bus grant, bus request
     //double transfer_rate_growth;//growth rate of rate
     //int saturated_volume;
-    DMA(uint64_t id) : mode(BURST_MODE), transfer_rate(10 KB), warmup_cycles(2), Device(id) {}
+    DMA(uint64_t id) : mode(BURST_MODE), transfer_rate(10 KB), warmup_cycles(2), Device(id, 1) {}
     int getTransferCycles(int volume){
         return warmup_cycles + ceil(volume/transfer_rate);
     }
@@ -132,6 +146,7 @@ constexpr unsigned int hash(const char *s, int off = 0) {
 enum class MemOp { Read, Write };
 
 struct Memory : public Device {
+    int banks;
     int read_ports;
     int write_ports;
     int data_lines;//lines of data
@@ -145,8 +160,9 @@ struct Memory : public Device {
     //int cache_size;
     //latency
 
-    Memory(uint64_t id, int rp, int wp, int de_vol, int dlines, std::string dtype, 
-        int cyc_per_data, int min_cyc) : Device(id) {
+    Memory(uint64_t id, int bks, int rp, int wp, int de_vol, int dlines, std::string dtype, 
+        int cyc_per_data, int min_cyc) : Device(id, bks) {
+        banks = bks;
         read_ports = rp;
         write_ports = wp;
         default_volume = de_vol;
@@ -175,27 +191,27 @@ struct Memory : public Device {
         total_volume = total_size * dlines;
         cycles_per_data = cyc_per_data;
         min_cycles= min_cyc;
-        cycles = std::max(cyc_per_data*int(round(total_volume/de_vol)), min_cyc);
+        cycles = std::max( (int)round( cyc_per_data * (float)total_volume/(float)de_vol ) , min_cyc);
     }
 
     int getReadOrWriteCycles(int dlines, MemOp op){
         if(op == MemOp::Read)
-            return (read_ports == ENOUGH)? cycles : ceil(dlines / read_ports)*cycles;
+            return (read_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
         if(op == MemOp::Write)
-            return (write_ports == ENOUGH)? cycles : ceil(dlines / read_ports)*cycles;
+            return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
         return -1;
     }
 };
 struct RegisterFile : public Memory {
-   RegisterFile(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 64 Byte, dlines, dtype, 
+   RegisterFile(uint64_t id, int bks, int dlines, std::string dtype) : Memory(id, bks, ENOUGH, ENOUGH, 64 Byte, dlines, dtype, 
         1, 1) {}
 };
 struct SRAM : public Memory {
-   SRAM(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 10 KB, dlines, dtype, 
+   SRAM(uint64_t id, int bks, int dlines, std::string dtype) : Memory(id, bks, ENOUGH, ENOUGH, 10 KB, dlines, dtype, 
         10, 2) {}
 };
 struct DRAM : public Memory {
-   DRAM(uint64_t id, int dlines, std::string dtype) : Memory(id, ENOUGH, ENOUGH, 512 MB, dlines, dtype, 
+   DRAM(uint64_t id, int bks, int dlines, std::string dtype) : Memory(id, bks, ENOUGH, ENOUGH, 512 MB, dlines, dtype, 
         100, 5) {}
 };
 

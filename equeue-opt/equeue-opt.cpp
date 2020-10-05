@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
   
   if(generateInputFile){
     MLIRGenImpl generator(context);
-    generator.simpleGenerator();
+    generator.scaleSimGenerator();
   }
   else{
     // Set up the input file.

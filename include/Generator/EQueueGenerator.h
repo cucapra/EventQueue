@@ -28,7 +28,7 @@
 #include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 
 #include "llvm/Support/raw_ostream.h"
-
+#include <math.h> 
 
 struct layerConfig {
   int batch = 1;

@@ -25,14 +25,14 @@ void MLIRGenImpl::simpleGenerator(){
   Value proc, mem, comp;
   for(int i = 0; i < 5; i++){
     proc = create_proc("proc", "AIEngine");
-    mem = create_mem("mem", ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile");
+    mem = create_mem("mem", ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile", 1);
     if(i==0) {
       comp = create_comp("pe_"+to_string(i), ValueRange{mem, proc}) ;
     } else {
       comp = create_comp("pe_"+to_string(i), ValueRange{mem, proc, comp});
     }
   }
-  Value sram(create_mem("mem", ArrayRef<int64_t>{ 1024 }, "f32", "SRAM"));
+  Value sram(create_mem("mem", ArrayRef<int64_t>{ 1024 }, "f32", "SRAM", 16));
   Value dma(create_dma("dma"));
   Value processor(create_proc("proc", "MicroPlate") );
   Value accel( create_comp("accel", ValueRange{ comp, processor, sram, dma}) );
