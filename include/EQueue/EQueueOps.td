@@ -59,7 +59,7 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
     "Builder builder, OperationState &result, StringRef name, ArrayRef<int64_t> shape, StringRef data, StringRef type, int64_t banks=1"
     >
   ];
-  let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type, OptionalAttr<I32Attr>:$banks);
+  let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type, OptionalAttr<I64Attr>:$banks);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
@@ -79,8 +79,8 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
       return getAttr("type").cast<StringAttr>().getValue();
     };
     int64_t getBank(){
-      if(getAttr("bank")){
-        return getAttr("bank").cast<IntegerAttr>().getInt();
+      if(getAttr("banks")){
+        return getAttr("banks").cast<IntegerAttr>().getInt();
       }else{
         return 1;
       }
@@ -289,7 +289,7 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value value, ValueRange buffer, int64_t bank = 0"
 	>];
-  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, OptionalAttr<I32Attr>: $bank);
+  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, OptionalAttr<I64Attr>: $bank);
   let extraClassDeclaration = [{
     Value getBuffer(){
       return getOperand(1);
@@ -319,7 +319,7 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value buffer, ValueRange index = ValueRange{}, int64_t bank = 0"
 	>];
-  let arguments = (ins AnyMemRef: $buffer, Variadic<Index>:$index, OptionalAttr<I32Attr>: $bank);
+  let arguments = (ins AnyMemRef: $buffer, Variadic<Index>:$index, OptionalAttr<I64Attr>: $bank);
   let results = (outs AnyScalarOrTensor: $res);
   let extraClassDeclaration = [{
     Value getBuffer(){
@@ -470,13 +470,20 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, "
     "ValueRange offset = ValueRange{}, int64_t src_bank = 0, int64_t dest_bank = 0"
 	>];
-  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, 
-                       OptionalAttr<I32Attr>: $src_bank, OptionalAttr<I32Attr>: $dest_bank, I32:$dma, 
-                       Optional<Index>:$offset);
+  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, 
+                       Variadic<Index>:$offset, OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank
+                       );
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
     Value getDMAHandler(){
       return getOperand(3);
+    };
+    //temporary
+    operand_range getIndex(){
+      return {operand_begin() + 4, operand_end()};
+    };
+    bool hasOffset(){
+      return !getIndex().empty();
     };
     Value getSrcBuffer(){
       return getOperand(1);

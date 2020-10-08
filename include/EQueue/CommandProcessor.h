@@ -47,7 +47,7 @@ struct OpEntry{
   mlir::Operation *op;
 
   uint64_t tid;
-  llvm::SmallVector<uint64_t, 16> mem_tids;
+  std::vector<uint64_t> mem_tids;
 
   uint64_t start_time;
   uint64_t end_time;

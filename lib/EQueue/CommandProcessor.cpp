@@ -129,6 +129,7 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     }
     auto dtype = Op.getDataType().str();
     auto banks = Op.getBank();
+    
     auto key = valueIds[op->getResults()[0]];
     if (Op.getMemType() == "DRAM")
       deviceMap[key] = std::make_unique<xilinx::equeue::DRAM>(deviceId, banks, dlines, dtype);
@@ -164,30 +165,38 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemCopyOp>(op)) {
     //TODO: offset
-    int srcLines = getMemVolume( Op.getSrcBuffer() );
-    int destLines = getMemVolume( Op.getDestBuffer() );
+    int srcLines = 1;
+    int destLines = 1;
+    if(!Op.hasOffset()){
+      int srcLines = getMemVolume( Op.getSrcBuffer() );
+      int destLines = getMemVolume( Op.getDestBuffer() );
+    }
     int dlines = std::min(srcLines, destLines);
+    
     auto srcKey = valueIds[getAllocOp(Op.getSrcBuffer()).getMemHandler()];
     auto destKey = valueIds[getAllocOp(Op.getDestBuffer()).getMemHandler()];
+    
     auto srcMem = static_cast<xilinx::equeue::Memory *>(deviceMap[srcKey].get());
     c.mem_tids.push_back(srcMem->uid);
     uint64_t readTime = srcMem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Read);
     auto destMem = static_cast<xilinx::equeue::Memory *>(deviceMap[destKey].get());
     c.mem_tids.push_back(destMem->uid);
     uint64_t writeTime = destMem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Write);
-    int total_size = srcMem->total_size;
-    int volume = dlines * total_size;
+    //int total_size = srcMem->total_size;
+    //int volume = dlines * total_size;
+    int volume = dlines;
     auto key = valueIds[Op.getDMAHandler()];
     auto dma = static_cast<xilinx::equeue::DMA *>(deviceMap[key].get());
     uint64_t dmaTime = dma->getTransferCycles(volume);
     execution_time = std::max({readTime, writeTime, dmaTime});
     //clean outdated events
     int src_idx = Op.getSrcBank();
-    int dest_idx = Op.getSrcBank();
-    return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {destMem, srcMem});
+    int dest_idx = Op.getDestBank();
+    return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {srcMem, destMem});
   }
   if (  op->hasTrait<mlir::OpTrait::StructureOpTrait>() ||
         mlir::dyn_cast<mlir::ConstantOp>(op) ||
+        mlir::dyn_cast<xilinx::equeue::MemAllocOp>(op) ||
         mlir::dyn_cast<xilinx::equeue::AwaitOp>(op) ||
         mlir::dyn_cast<xilinx::equeue::LaunchOp>(op) ||
         mlir::dyn_cast<xilinx::equeue::ReturnOp>(op) ||
@@ -226,7 +235,7 @@ void updateSignalIds(mlir::ValueRange args0, mlir::ValueRange args1){
     arg1_it += 1;
   }
 }
-//TODO: illustrate this
+
 void updateIterState(mlir::ValueRange args, bool yield){
   for (Value arg: args ){
     if( arg.getType().isa<xilinx::equeue::EQueueSignalType>() ){
@@ -551,7 +560,7 @@ void nextEndTimes( LauncherTable &l, std::vector<uint64_t> &next_times){
 
 void simulateFunction(mlir::FuncOp &toplevel)
 {
-
+  LLVM_DEBUG(llvm::dbgs()<<"========== start simulation ===========\n");
   auto hostIter = toplevel.getCallableRegion()->front().begin();
   hostTable.host = true;
   hostTable.next_iter = hostIter;
@@ -769,12 +778,12 @@ void CommandProcessor::run(mlir::ModuleOp module) {
 
   for(unsigned i = 0; i < numInputs; i++) {
     mlir::Type type = ftype.getInput(i);
-    if (auto tensorTy = type.dyn_cast<mlir::TensorType>()) {
+    //if (auto tensorTy = type.dyn_cast<mlir::TensorType>()) {
       // We require this memref type to be fully specified.
       // runner.valueMap[blockArgs[i]]++;
-    } else {
-      llvm_unreachable("Only memref arguments are supported.\n");
-    }
+    //} else {
+    //  llvm_unreachable("Only memref arguments are supported.\n");
+    //}
   }
 
   std::vector<llvm::Any> results(numOutputs);

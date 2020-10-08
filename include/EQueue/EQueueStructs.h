@@ -24,7 +24,7 @@
 #include <algorithm>    
 #include <vector>
 #include <initializer_list>
-
+#include <iostream>
 using namespace mlir;
 namespace xilinx {
 namespace equeue {
@@ -105,9 +105,11 @@ struct Device {
         start.push_back(start_time);
         start.push_back( (events[idx].end()-1)->second+1 );
         int i = 0;
+        deleteOutdatedEvents(i, start_time);
         //schedule right after the latest end time of all events
         for( auto device : dlist )
         {
+            device->deleteOutdatedEvents(i, start_time);
             auto e = device->events[idx_list[i++]];
             if(!e.empty())
                 start.push_back((e.end()-1)->second+1);

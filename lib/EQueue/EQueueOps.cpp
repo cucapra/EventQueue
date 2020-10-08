@@ -52,7 +52,6 @@ void CreateMemOp::build(Builder builder, OperationState &result, StringRef name,
 	result.addAttribute("shape", builder.getI64TensorAttr(shape));
 	result.addAttribute("data", builder.getStringAttr(data));
 	result.addAttribute("type", builder.getStringAttr(type));
-	//result.addAttribute("read_ports", builder.getI64IntegerAttr(read_ports));
 	result.addAttribute("banks", builder.getI64IntegerAttr(banks));
 	auto i32Type = IntegerType::get(32, builder.getContext());
 	result.types.push_back(i32Type);
