@@ -33,9 +33,9 @@
 struct layerConfig {
   int batch = 1;
   int channel = 3;
-  int ifmap_height = 5;//7
-  int ifmap_width = 5;//7
-  int num_filter = 2;//10
+  int ifmap_height = 7;//7
+  int ifmap_width = 7;//7
+  int num_filter = 5;//10
   int filter_height = 3;
   int filter_width = 3;
   int stride = 1;
@@ -45,8 +45,8 @@ struct layerConfig {
 enum DataFlow {WS, OS, IS, RS};
 
 struct accelConfig {
-  int array_height = 2;//12
-  int array_width = 2;//14
+  int array_height = 5;//12
+  int array_width = 5;//14
   int ifmap_sram = 108;
   int filter_sram = 108;
   int ofmap_sram = 108;

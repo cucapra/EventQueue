@@ -288,6 +288,11 @@ void finishOp(LauncherTable &l, uint64_t time, uint64_t pid)
           mlir::dyn_cast<xilinx::equeue::CreateDMAOp>(c.op)){
           auto key = c.op->getResult(0);
           LauncherTable l;
+          if( auto dma_op = mlir::dyn_cast<xilinx::equeue::CreateDMAOp>(c.op) ){
+            l.name = dma_op.getName().str();
+          } else if ( auto proc_op = mlir::dyn_cast<xilinx::equeue::CreateProcOp>(c.op)){
+            l.name = proc_op.getName().str();
+          }
           launchTables.insert({key, l});
         }
       }
@@ -297,10 +302,10 @@ void finishOp(LauncherTable &l, uint64_t time, uint64_t pid)
       auto opStr = op_str.substr(position);
       // emit trace event end
       if ( c.end_time != c.start_time ){
-        emitTraceEvent(traceStream, opStr, "operation", "E", time, pid, 0);
+        emitTraceEvent(traceStream, opStr, l.name, "E", time, pid, 0);
       }
       for(auto iter = c.mem_tids.begin(); iter != c.mem_tids.end(); iter++){
-        emitTraceEvent(traceStream, opStr, "memory", "E", time, *iter, 1);
+        emitTraceEvent(traceStream, opStr, l.name, "E", time, *iter, 1);
       }
       // set op_entry to empty
       OpEntry entry;
@@ -329,12 +334,15 @@ void scheduleOp(LauncherTable &l, uint64_t time, uint64_t pid)
     c_next.queue_ready_time = time;
   // emit trace event begin
 
-  if( auto Op = llvm::dyn_cast<xilinx::equeue::AwaitOp>(c_next.op) )
+  if( auto Op = llvm::dyn_cast<xilinx::equeue::AwaitOp>(c_next.op) ){
+  LLVM_DEBUG(llvm::dbgs()<<"[schedule] await op\n");
     if(waitForSignal(c_next.op))
       return;
+  }
   LLVM_DEBUG(llvm::dbgs()<<"[schedule] not waiting for any signal\n");
 
   if ( !c_next.is_started() ){
+    //not scheduled before, let's schedule it
     if( llvm::dyn_cast<xilinx::equeue::LaunchOp>(c_next.op) ||
         llvm::dyn_cast<xilinx::equeue::MemCopyOp>(c_next.op) ||
          llvm::dyn_cast<xilinx::equeue::AwaitOp>(c_next.op) ){
@@ -354,16 +362,14 @@ void scheduleOp(LauncherTable &l, uint64_t time, uint64_t pid)
     size_t position = op_str.find(op_str);
     auto opStr = op_str.substr(position);
     if ( c_next.end_time != c_next.start_time ){
-      llvm::outs()<<pid<<"\n";
-      
-      emitTraceEvent(traceStream, opStr, "operation", "B", time, pid, 0);
+      emitTraceEvent(traceStream, opStr, l.name, "B", time, pid, 0);
     }
     for(auto iter = c_next.mem_tids.begin(); iter != c_next.mem_tids.end(); iter++){
-      emitTraceEvent(traceStream, opStr, "memory", "B", time, *iter, 1);
+      emitTraceEvent(traceStream, opStr, l.name, "B", time, *iter, 1);
     }
     if (time > c_next.queue_ready_time) {
-      emitTraceEvent(traceStream, "stall", "operation", "B", c_next.queue_ready_time, pid, 0);
-      emitTraceEvent(traceStream, "stall", "operation", "E", time, pid, 0);
+      emitTraceEvent(traceStream, "stall", l.name, "B", c_next.queue_ready_time, pid, 0);
+      emitTraceEvent(traceStream, "stall", l.name, "E", time, pid, 0);
     }
 
   }
@@ -405,11 +411,11 @@ bool waitForSignal(mlir::Operation* op, mlir::Value in){
   auto signal = getSignalId(valueIds[in]);
   auto op_block_cycle = blockExs[op->getBlock()];
   auto in_block_cycle = 1;
-  if(to_string(op)!="equeue.await"){
+  //if(to_string(op)!="equeue.await"){
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] "<<to_string(op)<<"\n");
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] sending to waitforsignal(op,in) "<<in<<"\n");
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] aliasing "<<signal<<"\n");
-  }
+  //}
   if(signal.getDefiningOp())
     in_block_cycle = blockExs[signal.getDefiningOp()->getBlock()];
   if( !valueMap.count( signal ) ){
@@ -454,29 +460,30 @@ bool waitForSignal(mlir::Operation* op, mlir::Value in){
   return false;
 }
 
-void checkEventQueue(LauncherTable& l){
+bool checkEventQueue(LauncherTable& l){
+  bool generateSignal=false;
   while( !l.event_queue.empty() ){
     auto op = l.event_queue.front();
 
     if(op->hasTrait<mlir::OpTrait::ControlOpTrait>()){
-      if( waitForSignal(op) ) return;
-      // the control operation has immediate effect
+      if( waitForSignal(op) ) break;
       
+      //finish control op
+      //immediately udpate signal
       LLVM_DEBUG(llvm::dbgs()<<"[checkEventQueue] finish "<<to_string(op)<<"\n");
       opMap[op]++;
       updateExecution(op->getResults());
       // first event of event_queue will be handled by launcher
       // continue to check next one
       l.event_queue.erase(l.event_queue.begin());
+      generateSignal = true;
       continue;
     }
-    //mlir::Value launcher;
+    //launch op
     if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(op) ){
-      if( waitForSignal(op, Op.getStartSignal()) ) return;
-      //launcher = valueIds[Op.getDeviceHandler()];
+      if( waitForSignal(op, Op.getStartSignal()) ) break;
     } else {//memcopy
-      if( waitForSignal(op) ) return;
-      //launcher = valueIds[Op.getDMAHandler()];
+      if( waitForSignal(op) ) break;
     }
     LLVM_DEBUG(llvm::dbgs()<<"[checkEventQueue] "<<to_string(op)<<" finish waiting\n");
     if( l.is_idle() ){
@@ -495,6 +502,7 @@ void checkEventQueue(LauncherTable& l){
     }
     break;
   }
+  return generateSignal;
 }
 
 void setOpEntry(LauncherTable& l, uint64_t& tid){
@@ -563,6 +571,7 @@ void simulateFunction(mlir::FuncOp &toplevel)
   LLVM_DEBUG(llvm::dbgs()<<"========== start simulation ===========\n");
   auto hostIter = toplevel.getCallableRegion()->front().begin();
   hostTable.host = true;
+  hostTable.name = "host";
   hostTable.next_iter = hostIter;
   hostTable.block = &toplevel.getCallableRegion()->front();
 
@@ -580,14 +589,14 @@ void simulateFunction(mlir::FuncOp &toplevel)
     LLVM_DEBUG(llvm::dbgs()<<"2. checkEventQueue\n");
     checkEventQueue(hostTable);
     for ( auto iter = launchTables.begin(); iter != launchTables.end(); iter++){
-      checkEventQueue(iter->second);
+      if( checkEventQueue(iter->second) ){
+      //new signal generated, check from the front
+        iter=launchTables.begin();
+      }
     }
     // end condition, nothing can be put on to op_entry
     running = !hostTable.is_idle();
 		for (auto iter = launchTables.begin(); iter!=launchTables.end(); iter++){
-			
-      LLVM_DEBUG(llvm::dbgs()<<iter->first<<"\n");
-      //LLVM_DEBUG(llvm::dbgs()<<iter->second<<"\n");
 			running = running || !iter->second.is_idle();
 		}
     if( !running ) break;
@@ -605,10 +614,12 @@ void simulateFunction(mlir::FuncOp &toplevel)
 		for (auto iter = launchTables.begin(); iter!=launchTables.end(); iter++){
       nextEndTimes(iter->second, next_times);
 		}
-    if(!next_times.size())
+    if(!next_times.size()){
+      LLVM_DEBUG(llvm::dbgs()<<"!!!!!!!!WRONG!!!!!!!!!!\n\n");
       time = time;
-    else
+    } else {
       time =  *std::min_element(next_times.begin(), next_times.end());
+    }
     LLVM_DEBUG(llvm::dbgs()<<"Next end time: "<<time<<"\n");
     //if(time > 2000) break;
     LLVM_DEBUG(llvm::dbgs()<<"4. finishOp\n");

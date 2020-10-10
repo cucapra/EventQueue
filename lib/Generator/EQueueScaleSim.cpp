@@ -18,6 +18,7 @@ void MLIRGenImpl::scaleSimGenerator(){
   // ofmap px
   int px_ofmap = E_h * E_w * layer_config.num_filter;
   int e2 = E_h * E_w;
+  int e_fresh_px = E_h * layer_config.num_filter;
   
   // fold is number of times it takes to finish computation on some dimensions
   int num_h_fold = 1;
@@ -31,9 +32,8 @@ void MLIRGenImpl::scaleSimGenerator(){
   int max_cols_per_v_fold = max_parallel_conv * accel_config.array_width;
   int num_v_fold = ceil( (float)layer_config.num_filter / (float)max_cols_per_v_fold);
   
-  //cout<<num_v_fold<<" "<<num_h_fold<<"\n";//1, 3
+  //llvm::outs()<<num_v_fold<<" "<<num_h_fold<<"\n";//1, 3
   auto remaining_cols = layer_config.num_filter;
-  
   
   
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());
@@ -51,8 +51,8 @@ void MLIRGenImpl::scaleSimGenerator(){
   Value proc, mem, comp;
   for(int i = 0; i < accel_config.array_height; i++){
     for(int j = 0; j < accel_config.array_width; j++){
-      proc = create_proc("proc", "AIEngine");
-      mem = create_mem("mem", ArrayRef<int64_t>{ 3 }, "f32", "RegisterFile", 3);
+      proc = create_proc("proc"+to_string(i)+","+to_string(j), "AIEngine");
+      mem = create_mem("mem"+to_string(i)+","+to_string(j), ArrayRef<int64_t>{ 3 }, "f32", "RegisterFile", 3);
       if(i==0&&j==0) {
         comp = create_comp("pe_"+to_string(i)+","+to_string(j), ValueRange{mem, proc}) ;
       } else {
@@ -63,7 +63,7 @@ void MLIRGenImpl::scaleSimGenerator(){
   Value sram(create_mem("mem", ArrayRef<int64_t>{ accel_config.ifmap_sram * 1024 }, "f32", "SRAM", accel_config.array_height + accel_config.array_width ) );
   Value dma_col;
   for(int i = 0; i < accel_config.array_width; i++){
-    Value dma(create_dma("dma"));
+    Value dma(create_dma("dma"+to_string(i)));
     if(i==0) {
       dma_col = create_comp("dma_col", ValueRange{dma}) ;
     }else{
@@ -72,7 +72,7 @@ void MLIRGenImpl::scaleSimGenerator(){
   }
   Value dma_row;
   for(int i = 0; i < accel_config.array_height; i++){
-    Value dma(create_dma("dma"));
+    Value dma(create_dma("dma"+to_string(i)));
     if(i==0) {
       dma_row = create_comp("dma_row", ValueRange{dma}) ;
     }else{
@@ -95,13 +95,13 @@ void MLIRGenImpl::scaleSimGenerator(){
       dma_col = get_comp(accel, "dma_col");
       SmallVector<Value, 20> dma_rows, dma_cols;
       
-      for(int i = 0; i < accel_config.array_height; i++){
-        dma_rows.push_back(get_comp(dma_row, "dma"));
-        if(i!=accel_config.array_height-1) dma_row = get_comp(dma_row, "dma_row");
+      for(int i = accel_config.array_height-1; i >= 0 ; i--){
+        dma_rows.push_back(get_comp(dma_row, "dma"+to_string(i) ));
+        if(i!=0) dma_row = get_comp(dma_row, "dma_row");
       }
-      for(int i = 0; i < accel_config.array_width; i++){
-        dma_cols.push_back(get_comp(dma_col, "dma"));
-        if(i!=accel_config.array_width-1) dma_col = get_comp(dma_col, "dma_col");
+      for(int i = accel_config.array_width-1; i >= 0; i--){
+        dma_cols.push_back(get_comp(dma_col, "dma"+to_string(i) ));
+        if(i!=0) dma_col = get_comp(dma_col, "dma_col");
       }
       
       sram = get_comp(accel, "mem");
@@ -123,15 +123,14 @@ void MLIRGenImpl::scaleSimGenerator(){
         SmallVector<Value, 20> line_pe, line_mem, line_proc;
         SmallVector<Value, 20> line_wbuffer, line_obuffer, line_ibuffer;
         for(int j = accel_config.array_width-1; j >= 0; j--){
-        //for(int j = 0; j >= 0; j--){
           if(j==accel_config.array_width-1 && i==accel_config.array_height-1){
             pe = get_comp(accel, "pe_"+to_string(i)+","+to_string(j));
           }else{
             pe = get_comp(pe, "pe_"+to_string(i)+","+to_string(j));
           }
           
-          mem = get_comp(pe, "mem");
-          proc = get_comp(pe, "proc");
+          mem = get_comp(pe, "mem"+to_string(i)+","+to_string(j));
+          proc = get_comp(pe, "proc"+to_string(i)+","+to_string(j));
           wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
           obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
           ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);// ArrayRef<int64_t>{ 4 }
@@ -154,15 +153,14 @@ void MLIRGenImpl::scaleSimGenerator(){
       }
       
       //for ofmap computation
-      Value compute_signal, prev_compute_signal;
-      Value done_one_array;
-      for(int i = 0; i < num_v_fold; i++){//seq_for
+      for(int i = 0; i < num_v_fold; i++){//seq_for  
         int col_this_fold = min(remaining_cols, max_parallel_conv * accel_config.array_width);
         remaining_cols -= col_this_fold;
         int rem_h = px_per_conv;
         for(int j = 0; j < num_h_fold; j++){//seq_for
           int row_this_fold = min(rem_h, accel_config.array_height);
           rem_h-=row_this_fold;
+          
           /// ===========================================
           /// ----------- one iteration -----------------
           /// ===========================================
@@ -172,108 +170,145 @@ void MLIRGenImpl::scaleSimGenerator(){
           /// ===========================================
           Value c0 = std_constant_index(0);
           
-          
           for(int t = 0; t < row_this_fold-1; t++){//seq_for
-          //for(int t = 0; t < 1; t++){//seq_for
+            Value filter_cpy, prev_filter_cpy;
+            
             Value start_cpy = start_op();
-            Value filter_cpy;
             for(int c = 0; c < col_this_fold; c++){//par_for
-            //for(int c = 0; c < 2; c++){//par_for
-            //XXX(Zhijing):banking might goes wrong
-              filter_cpy = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
-              
-              for(int r = 0; r <= t; r++){//par_for
-                // TODO: offset, ignore it at this moment
-                // instead of having it on memcpy_op, we need some "view"
-                // copy from sram to pe (wbuffer)
-                filter_cpy = LaunchOpBuilder(filter_cpy, procs[r][c], ValueRange{wbuffer2s[r+1][c], wbuffer2s[r][c]}, 
+              Value mem_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
+              //......................................................
+              // This is wrong. we cannot functionally specify what it is doing. 
+              // how to model one clock cycle?
+              //......................................................
+              for(int r = 0; r < row_this_fold-1; r++){//par_for
+                filter_cpy = LaunchOpBuilder(mem_cpy_end, procs[r][c], ValueRange{wbuffer2s[r][c], wbuffer2s[r+1][c]}, 
                   [&](ValueRange ins){
-                  filter = read_op(ins[0]);
+                  filter = read_op(ins[0], ValueRange{});
                   write_op(filter, ins[1]);
                   return_op(ValueRange{});
                 })[0];
               }
+              if(c==0){
+                prev_filter_cpy=control_and(ValueRange{filter_cpy, mem_cpy_end});
+              }else{
+                prev_filter_cpy = control_and(ValueRange{mem_cpy_end, prev_filter_cpy, filter_cpy});
+              }
             }
-            await_op(ValueRange{filter_cpy});
+            await_op(ValueRange{prev_filter_cpy});
           }
           
           for(int t = 0; t < e2+row_this_fold+col_this_fold; t++){//seq_for
           //one parallel cycle
-          
-            for(int c = 0; c < min(t+1, col_this_fold); c++){//par_for
+            
+            // copy from sram to pe (ibuffer)
+            Value start_cpy = start_op();
+            Value compute_signal, prev_compute_signal;;
+            //for(int c = 0 ; c < col_this_fold; c++){//par_for
+            if (t == 0) {
               for(int r = 0; r < row_this_fold; r++){//par_for
-                // copy from sram to pe (ibuffer)
-                if (c==0){
-                  Value start_cpy = start_op();
-                  if (t == 0) {
-                    compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{c0}, r, 0);
-                  } else if (t < e2) {
-                    compute_signal = memcpy_op(done_one_array, ibuffer, ibuffer2s[0][0], dma_rows[0], ValueRange{c0}, 0, 0);
-                  } else {
-                    compute_signal = done_one_array;
-                  }
+                compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{}, r, 0);
+                if(r==0){
+                  prev_compute_signal = compute_signal;
+                } else {
+                  prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
                 }
-                
+              }
+            } else if (t < e2) {
+              prev_compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][0], dma_rows[0], ValueRange{c0}, 0, 0);
+            } else {
+              prev_compute_signal = start_cpy;
+            }
+            await_op(ValueRange{prev_compute_signal});
+            
+            //pe runs
+            Value start_compute_signal = start_op();
+            for(int c = 0 ; c < col_this_fold; c++){//par_for
+              for(int r = 0; r < row_this_fold; r++){//par_for
                 // one cycle for a pe
-                if(c!=col_this_fold-1){// compute & ifmap copy
-                  compute_signal = LaunchOpBuilder(compute_signal, procs[r][c], ValueRange{
-                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], ibuffer2s[r][c+1]}, 
+                if(c!=col_this_fold-1 && r!=row_this_fold-1){
+                // compute & ifmap copy
+                // how to model it, allow them run in parallel?
+                  compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                    ibuffer2s[r][c+1], ibuffer2s[r+1][c], obuffer2s[r+1][c]}, 
                     [&](ValueRange ins){
                     ifmap = read_op(ins[0]);
                     write_op(ifmap, ins[3]);
-                    filter = read_op(ins[1]);
+                    write_op(ifmap, ins[4]);
+                    filter = read_op(ins[1], ValueRange{}, 1);
                     ofmap = std_mulf(ifmap, filter);
                     // not sure about "zero" case
-                    Value ofmap_old = read_op(ins[2]);
+                    Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
                     ofmap = std_addf(ofmap, ofmap_old);
-                    write_op(ofmap, ins[2]);
+                    write_op(ofmap, ins[5], 2);
                     return_op(ValueRange{});
                   })[0];
-                }else if(c==col_this_fold-1){// compute
-                  compute_signal = LaunchOpBuilder(compute_signal, procs[r][c], ValueRange{
-                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c]}, 
+                } else if( c==col_this_fold-1 && r!=row_this_fold-1 ){// compute
+                  compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                    ibuffer2s[r+1][c], obuffer2s[r+1][c]}, 
                     [&](ValueRange ins){
                     ifmap = read_op(ins[0]);
-                    filter = read_op(ins[1]);
+                    write_op(ifmap, ins[3]);
+                    filter = read_op(ins[1], ValueRange{}, 1);
                     ofmap = std_mulf(ifmap, filter);
-                    Value ofmap_old = read_op(ins[2]);
+                    Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
                     ofmap = std_addf(ofmap, ofmap_old);
-                    write_op(ofmap, ins[2]);
+                    write_op(ofmap, ins[4], 2);
                     return_op(ValueRange{});
                   })[0];
-                }
-                // how to not do this manually?
-                if(r+c <= t && // too early, nothing to pass
-                  r+c > t-e2 &&// too late, nothing to pass
-                  r!=row_this_fold-1){ // pass ofmap
-                  compute_signal = LaunchOpBuilder(compute_signal, procs[r][c], ValueRange{obuffer2s[r][c], obuffer2s[r+1][c]}, 
+                } else if( c!=col_this_fold-1 && r==row_this_fold-1 ){
+                  compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                    ibuffer2s[r][c+1], obuffer}, 
                     [&](ValueRange ins){
-                    ofmap = read_op(ins[0]);
-                    write_op(ofmap, ins[1]);
+                    ifmap = read_op(ins[0]);
+                    write_op(ifmap, ins[3]);
+                    filter = read_op(ins[1], ValueRange{}, 1);
+                    ofmap = std_mulf(ifmap, filter);
+                    Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                    ofmap = std_addf(ofmap, ofmap_old);
+                    if( r+c <= t && // too early, nothing to pass
+                        c > t-e2-row_this_fold && // too late, nothing to pass
+                        t%e_fresh_px == 0
+                    ){
+                      ofmap = std_addf(ofmap, ofmap_old);
+                      write_op(ofmap, ins[4], c);
+                    }
+                    return_op(ValueRange{});
+                  })[0];
+                } else { //( c!=col_this_fold-1 && r==row_this_fold-1 )
+                  compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                    obuffer}, 
+                    [&](ValueRange ins){
+                    ifmap = read_op(ins[0]);
+                    filter = read_op(ins[1], ValueRange{}, 1);
+                    ofmap = std_mulf(ifmap, filter);
+                    Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                    ofmap = std_addf(ofmap, ofmap_old);
+                    if( r+c <= t && // too early, nothing to pass
+                        c > t-e2-row_this_fold &&// too late, nothing to pass
+                        t%e_fresh_px == 0
+                    ){
+                      ofmap = std_addf(ofmap, ofmap_old);
+                      write_op(ofmap, ins[3], c);
+                    }
                     return_op(ValueRange{});
                   })[0];
                 }
-              }
-              
-              if(t >= row_this_fold && // constraint on time
-                c >= t-e2-row_this_fold // constraint on c
-              ){ // cpy ofmap to sram
-                int64_t r_end = row_this_fold-1;
-                compute_signal = memcpy_op(compute_signal, obuffer2s[r_end][c], obuffer, dma_rows[r_end], ValueRange{}, 0, r_end);
-              }
-              if(c==0){
-                prev_compute_signal = compute_signal;
-              } else {
-                prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
-              }
-              if(c==min(t+1, col_this_fold)-1){
-                done_one_array = prev_compute_signal;
+                if(c==0 && r==0){
+                  prev_compute_signal = compute_signal;
+                } else {
+                  prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
+                }
               }
             }
+            await_op(ValueRange{prev_compute_signal});
           }
         }
       }
-      await_op(ValueRange{done_one_array});
+      //await_op(ValueRange{done_one_array});
       //return_op(ValueRange{obuffer});
       return_op(ValueRange{});
   });

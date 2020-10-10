@@ -23,6 +23,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include <ostream>
+#include <string>
 
 namespace acdc {
 
@@ -60,9 +61,10 @@ struct OpEntry{
   OpEntry() : op(nullptr), tid(0), start_time(0), end_time(0), queue_ready_time(0) {}
 
 };
-#define EVENT_QUEUE_SIZE 2
+#define EVENT_QUEUE_SIZE 200
 struct LauncherTable {
   bool host = false;
+  std::string name = "";
   OpEntry op_entry;
   
   mlir::Block *block;

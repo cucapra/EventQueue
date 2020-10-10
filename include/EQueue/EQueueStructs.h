@@ -75,7 +75,7 @@ struct Device {
         if(events[idx].size()==1){
             if(! (events[idx].begin()->first < start_time+exec_time) ){
                 //the event cannot be scheduled at the begining
-                start_time = (events[idx].begin()+1)->second + 1;
+                start_time = (events[idx].begin()+1)->second;
                 iter = events[idx].begin()+1;
             }
         }else if (events[idx].size() > 1) {
@@ -83,7 +83,7 @@ struct Device {
             for(; iter+1 != events[idx].end(); iter++){
                 if( iter->second < start_time && (iter+1)->first - iter->second > 
                     exec_time) {
-                    start_time = iter->second+1;
+                    start_time = iter->second;
                     iter++;
                     slotFound = true;
                     break;
@@ -91,7 +91,7 @@ struct Device {
             }
             if(!slotFound)
                 //the event cannot be scheduled at any slot, put to the end
-                start_time = (events[idx].end()-1)->second + 1;
+                start_time = (events[idx].end()-1)->second;
                 iter = events[idx].end();
         }
         events[idx].insert(iter, std::make_pair(start_time, start_time+exec_time));
@@ -198,7 +198,8 @@ struct Memory : public Device {
 
     int getReadOrWriteCycles(int dlines, MemOp op){
         if(op == MemOp::Read)
-            return (read_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
+            return 0;
+            //return (read_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
         if(op == MemOp::Write)
             return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
         return -1;
