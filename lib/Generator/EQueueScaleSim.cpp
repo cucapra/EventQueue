@@ -35,7 +35,8 @@ void MLIRGenImpl::scaleSimGenerator(){
   //llvm::outs()<<num_v_fold<<" "<<num_h_fold<<"\n";//1, 3
   auto remaining_cols = layer_config.num_filter;
   
-  
+
+
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());
   
   auto f32Type = builder.getF32Type();
@@ -60,6 +61,7 @@ void MLIRGenImpl::scaleSimGenerator(){
       }
     }
   }
+
   Value sram(create_mem("mem", ArrayRef<int64_t>{ accel_config.ifmap_sram * 1024 }, "f32", "SRAM", accel_config.array_height + accel_config.array_width ) );
   Value dma_col;
   for(int i = 0; i < accel_config.array_width; i++){
@@ -70,7 +72,7 @@ void MLIRGenImpl::scaleSimGenerator(){
       dma_col = create_comp("dma_col", ValueRange{dma, dma_col}) ;
     }
   }
-  Value dma_row;
+  Value dma_row;//dma for row
   for(int i = 0; i < accel_config.array_height; i++){
     Value dma(create_dma("dma"+to_string(i)));
     if(i==0) {
@@ -82,12 +84,12 @@ void MLIRGenImpl::scaleSimGenerator(){
   Value processor(create_proc("proc", "MicroPlate") );
   Value accel( create_comp("accel", ValueRange{ comp, processor, sram, dma_row, dma_col}) );
   Value signal = start_op();
-  
+  //isolated from above
   auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
     [&](ValueRange ins){
       accel = ins[0];
-      Value ifmap = ins[0];
-      Value filter = ins[0];
+      Value ifmap = ins[1];
+      Value filter = ins[2];
       Value ofmap;
       processor = get_comp(accel, "proc");
       

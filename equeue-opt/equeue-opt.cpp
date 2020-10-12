@@ -51,7 +51,7 @@ static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::init("-"));
 static llvm::cl::opt<std::string>
     jsonFilename("json", llvm::cl::desc("Json filename"),
-                   llvm::cl::value_desc("input json filename"), llvm::cl::init("../test/out.json"));
+                   llvm::cl::value_desc("input json filename"), llvm::cl::init("../test/out/out.json"));
 static llvm::cl::opt<std::string>
     outputFilename("o", llvm::cl::desc("Output filename"),
                    llvm::cl::value_desc("filename"), llvm::cl::init("-"));
