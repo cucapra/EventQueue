@@ -50,7 +50,7 @@ struct accelConfig {
   int ifmap_sram = 108;
   int filter_sram = 108;
   int ofmap_sram = 108;
-  DataFlow dataflow = WS;
+  DataFlow dataflow = OS;
 } ;
 
 
