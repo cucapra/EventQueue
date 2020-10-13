@@ -70,7 +70,7 @@ void MLIRGenImpl::scaleSimGenerator(){
   if(accel_config.dataflow==DataFlow::OS){
     int num_v_fold = ceil( (float)layer_config.num_filter / (float)accel_config.array_width);
     int num_h_fold = ceil( (float)e2 / (float)accel_config.array_height);
-        
+
     auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
       [&](ValueRange ins){
         accel = ins[0];
@@ -139,65 +139,133 @@ void MLIRGenImpl::scaleSimGenerator(){
           obuffer2s.push_back(line_obuffer);
           ibuffer2s.push_back(line_ibuffer);
         }
+
         int last_width = layer_config.num_filter % accel_config.array_width;
         int last_height = e2%accel_config.array_height;
         for(int t = 0; t < num_v_fold*num_h_fold*px_per_conv + 
             last_width*px_per_conv + last_height; t++ ){
           int col_this_fold = accel_config.array_width;
           int row_this_fold = accel_config.array_height;
-          if(t>= num_v_fold*num_h_fold*px_per_conv) col_this_fold = last_width;
-          if(t>= num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv) row_this_fold = last_height;
+          //if(t>= num_v_fold*num_h_fold*px_per_conv) col_this_fold = last_width;
+          //if(t>= num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv) row_this_fold = last_height;
           
           Value start_cpy = start_op();
           Value c0 = std_constant_index(0);
           Value col_cpy_end, prev_col_cpy;
+          bool empty_col = true;
           for(int c = 0; c < col_this_fold; c++){
             if(t>=c && t+c < num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv){
               col_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);
-            }
-            if(c!=0){
-              prev_col_cpy = control_and(ValueRange{col_cpy_end, prev_col_cpy});
-            }else{
-              prev_col_cpy = col_cpy_end;
+              if(c!=0){
+                prev_col_cpy = control_and(ValueRange{col_cpy_end, prev_col_cpy});
+              }else{
+                prev_col_cpy = col_cpy_end;
+              }
+              empty_col = false;
             }
           }
           Value row_cpy_end, prev_row_cpy;
+          bool empty_row = true;
           for(int r = 0; r < row_this_fold; r++){
             if(t>=r && t+r < num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
               row_cpy_end = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{c0}, r, 1);
-            }
-            if(r!=0){
-              prev_row_cpy = control_and(ValueRange{row_cpy_end, prev_row_cpy});
-            }else{
-              prev_row_cpy = row_cpy_end;
+              if(r!=0){
+                prev_row_cpy = control_and(ValueRange{row_cpy_end, prev_row_cpy});
+              }else{
+                prev_row_cpy = row_cpy_end;
+              }
+              empty_row = false;
             }
           }
-          await_op(ValueRange{prev_row_cpy, prev_col_cpy});
+          if(!empty_row && !empty_col) await_op(ValueRange{prev_row_cpy, prev_col_cpy});
+          if(!empty_row && empty_col) await_op(ValueRange{prev_row_cpy});
+          if(empty_row && !empty_col) await_op(ValueRange{prev_col_cpy});
           
           Value start_compute_signal = start_op();
           Value compute_signal, prev_compute_signal;
           for(int c = 0 ; c < col_this_fold; c++){//par_for
             for(int r = 0; r < row_this_fold; r++){//par_for
-              compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
-                ibuffer2s[r][c+1], wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
-                [&](ValueRange ins){
-                filter = read_op(ins[1]);
-                write_op(filter, ins[4]);
-                ifmap = read_op(ins[0],ValueRange{}, 1);
-                write_op(ifmap, ins[3], 1);
-                ofmap = std_mulf(ifmap, filter);
-                Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                ofmap = std_addf(ofmap, ofmap_old);
-                if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                  t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
-                  c0 = std_constant_index(0);
-                  write_op(c0, ins[2], 2);
-                  write_op(ofmap, ins[5], c);
-                }else{
+              if(c!=col_this_fold-1 && r!=row_this_fold-1){
+                compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  ibuffer2s[r][c+1], wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1]);
+                  write_op(filter, ins[4]);
+                  ifmap = read_op(ins[0],ValueRange{}, 1);
+                  write_op(ifmap, ins[3], 1);
+                  ofmap = std_mulf(ifmap, filter);
+                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                  ofmap = std_addf(ofmap, ofmap_old);
                   write_op(ofmap, ins[2], 2);
-                }
-              })[0];
+                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
+                    write_op(c0, ins[2], 2);
+                    write_op(ofmap, ins[5], c);
+                  }
+                  return_op(ValueRange{});
+                })[0];
+              } else if(c==col_this_fold-1 && r!=row_this_fold-1){
+                compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1]);
+                  write_op(filter, ins[3]);
+                  ifmap = read_op(ins[0],ValueRange{}, 1);
+                  ofmap = std_mulf(ifmap, filter);
+                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                  ofmap = std_addf(ofmap, ofmap_old);
+                  write_op(ofmap, ins[2], 2);
+                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
+                    write_op(c0, ins[2], 2);
+                    write_op(ofmap, ins[4], c);
+                  }
+                  return_op(ValueRange{});
+                })[0];
+              } else if(c!=col_this_fold-1 && r==row_this_fold-1){
+                compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  ibuffer2s[r][c+1], obuffer}, // a little violation of resource control
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1]);
+                  ifmap = read_op(ins[0],ValueRange{}, 1);
+                  write_op(ifmap, ins[3], 1);
+                  ofmap = std_mulf(ifmap, filter);
+                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                  ofmap = std_addf(ofmap, ofmap_old);
+                  write_op(ofmap, ins[2], 2);
+                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
+                    write_op(c0, ins[2], 2);
+                    write_op(ofmap, ins[4], c);
+                  }
+                  return_op(ValueRange{});
+                })[0];
+              } else {
+                compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  obuffer}, // a little violation of resource control
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1]);
+                  ifmap = read_op(ins[0],ValueRange{}, 1);
+                  ofmap = std_mulf(ifmap, filter);
+                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                  ofmap = std_addf(ofmap, ofmap_old);
+                  write_op(ofmap, ins[2], 2);
+                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
+                    write_op(c0, ins[2], 2);
+                    write_op(ofmap, ins[3], c);
+                  }
+                  return_op(ValueRange{});
+                })[0];
+              }
               if(c==0 && r==0){
                 prev_compute_signal = compute_signal;
               } else {
@@ -378,23 +446,31 @@ void MLIRGenImpl::scaleSimGenerator(){
                   // how to model it, allow them run in parallel?
                     compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                       ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
-                      ibuffer2s[r][c+1], ibuffer2s[r+1][c], obuffer2s[r+1][c]}, 
+                      ibuffer2s[r][c+1], ibuffer2s[r+1][c], obuffer}, 
                       [&](ValueRange ins){
                       ifmap = read_op(ins[0]);
                       write_op(ifmap, ins[3]);
-                      write_op(ifmap, ins[4]);
                       filter = read_op(ins[1], ValueRange{}, 1);
+                      write_op(filter, ins[4]);
                       ofmap = std_mulf(ifmap, filter);
                       // not sure about "zero" case
                       Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
                       ofmap = std_addf(ofmap, ofmap_old);
-                      write_op(ofmap, ins[5], 2);
+                      if( r+c <= t && // too early, nothing to pass
+                          c > t-e2-row_this_fold && // too late, nothing to pass
+                          t%e_fresh_px == 0
+                      ){
+                        ofmap = std_addf(ofmap, ofmap_old);
+                        write_op(ofmap, ins[5], c);
+                      } else{
+                        write_op(ofmap, ins[2], 2);
+                      }
                       return_op(ValueRange{});
                     })[0];
                   } else if( c==col_this_fold-1 && r!=row_this_fold-1 ){// compute
                     compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                       ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
-                      ibuffer2s[r+1][c], obuffer2s[r+1][c]}, 
+                      ibuffer2s[r+1][c], obuffer}, 
                       [&](ValueRange ins){
                       ifmap = read_op(ins[0]);
                       write_op(ifmap, ins[3]);
@@ -402,7 +478,15 @@ void MLIRGenImpl::scaleSimGenerator(){
                       ofmap = std_mulf(ifmap, filter);
                       Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
                       ofmap = std_addf(ofmap, ofmap_old);
-                      write_op(ofmap, ins[4], 2);
+                      if( r+c <= t && // too early, nothing to pass
+                          c > t-e2-row_this_fold && // too late, nothing to pass
+                          t%e_fresh_px == 0
+                      ){
+                        ofmap = std_addf(ofmap, ofmap_old);
+                        write_op(ofmap, ins[4], c);
+                      } else{
+                        write_op(ofmap, ins[2], 2);
+                      }
                       return_op(ValueRange{});
                     })[0];
                   } else if( c!=col_this_fold-1 && r==row_this_fold-1 ){
