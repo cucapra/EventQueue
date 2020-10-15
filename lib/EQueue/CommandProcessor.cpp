@@ -459,31 +459,42 @@ bool waitForSignal(mlir::Operation* op, mlir::Value in){
 
   return false;
 }
-
-bool checkEventQueue(LauncherTable& l){
-  bool generateSignal=false;
-  while( !l.event_queue.empty() ){
-    auto op = l.event_queue.front();
-
+bool checkControlQueue(){
+  bool generateSignal = false;
+  auto iter = controlQueue.begin();
+  while(iter != controlQueue.end()){
+    auto op = *iter;
     if(op->hasTrait<mlir::OpTrait::ControlOpTrait>()){
-      if( waitForSignal(op) ) break;
-      
+      if( waitForSignal(op) ){
+        iter++;  
+        continue;
+      }
       //finish control op
       //immediately udpate signal
-      LLVM_DEBUG(llvm::dbgs()<<"[checkEventQueue] finish "<<to_string(op)<<"\n");
+      LLVM_DEBUG(llvm::dbgs()<<"[checkControlQueue] finish "<<to_string(op)<<"\n");
       opMap[op]++;
       updateExecution(op->getResults());
       // first event of event_queue will be handled by launcher
       // continue to check next one
-      l.event_queue.erase(l.event_queue.begin());
+      controlQueue.erase(iter);
+      iter = controlQueue.begin();
       generateSignal = true;
       continue;
+    }else{
+      llvm_unreachable("check control queue should not sure anything other than control operation.\n");
     }
+  }
+  return generateSignal;
+}
+
+void checkEventQueue(LauncherTable& l){
+  if( !l.event_queue.empty() ){
     //launch op
+    auto op = l.event_queue.front();
     if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(op) ){
-      if( waitForSignal(op, Op.getStartSignal()) ) break;
+      if( waitForSignal(op, Op.getStartSignal()) ) return;
     } else {//memcopy
-      if( waitForSignal(op) ) break;
+      if( waitForSignal(op) ) return;
     }
     LLVM_DEBUG(llvm::dbgs()<<"[checkEventQueue] "<<to_string(op)<<" finish waiting\n");
     if( l.is_idle() ){
@@ -500,9 +511,8 @@ bool checkEventQueue(LauncherTable& l){
       l.event_queue.erase(l.event_queue.begin());
       LLVM_DEBUG(llvm::dbgs()<<"[launchee] erased : "<<l.event_queue.size()<<"\n");
     }
-    break;
   }
-  return generateSignal;
+  return ;
 }
 
 void setOpEntry(LauncherTable& l, uint64_t& tid){
@@ -517,10 +527,11 @@ void setOpEntry(LauncherTable& l, uint64_t& tid){
         if(op->hasTrait<mlir::OpTrait::AsyncOpTrait>()){
           // launch, memcpy, control...
           if(op->hasTrait<mlir::OpTrait::ControlOpTrait>()){
-            if (l.add_event_queue(op)){
-              l.next_iter++;
-            }else
-              break;
+            //if (l.add_event_queue(op)){
+            controlQueue.push_back(op);
+            l.next_iter++;
+            //}else
+            //break;
           }else{
             Value launcher;
             if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(op) ){
@@ -588,8 +599,10 @@ void simulateFunction(mlir::FuncOp &toplevel)
 
     LLVM_DEBUG(llvm::dbgs()<<"2. checkEventQueue\n");
     checkEventQueue(hostTable);
+    checkControlQueue();
     for ( auto iter = launchTables.begin(); iter != launchTables.end(); iter++){
-      if( checkEventQueue(iter->second) ){
+      checkEventQueue(iter->second);
+      if( checkControlQueue() ){
       //new signal generated, check from the front
         iter=launchTables.begin();
       }
@@ -733,7 +746,8 @@ private:
 
   LauncherTable hostTable;
 	llvm::DenseMap<mlir::Value, LauncherTable > launchTables;
-
+  // store control events, clock-ish
+  std::vector<mlir::Operation *> controlQueue;
   // map operation to (left) execution times
   llvm::DenseMap< mlir::Operation *, uint64_t > exTimes;
   llvm::DenseMap<mlir::Value, mlir::Value> signalIds;

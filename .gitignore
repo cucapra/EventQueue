@@ -2,3 +2,4 @@
 *.log
 build/
 *.swp
+test/out/*
