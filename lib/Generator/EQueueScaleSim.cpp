@@ -7,9 +7,9 @@ using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace std;
 
+
+
 void MLIRGenImpl::scaleSimGenerator(){
-  layerConfig layer_config;
-  accelConfig accel_config;
   // output feature map
   int E_h = (layer_config.ifmap_height - layer_config.filter_height - layer_config.stride) / layer_config.stride;
   int E_w = (layer_config.ifmap_width - layer_config.filter_width - layer_config.stride) / layer_config.stride;
@@ -18,6 +18,7 @@ void MLIRGenImpl::scaleSimGenerator(){
   // ofmap px
   int px_ofmap = E_h * E_w * layer_config.num_filter;
   int e2 = E_h * E_w;
+  llvm::outs()<<E_h<<" "<<E_w<<" "<<px_per_conv<<" "<<px_ofmap<<" "<<e2<<"\n";
   
   
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());  
@@ -103,11 +104,8 @@ void MLIRGenImpl::scaleSimGenerator(){
         Value wbuffer2, obuffer2, ibuffer2;
         
         Value pe;
-        //pe = get_comp(pe, "pe");
         //par for
         for(int i = accel_config.array_height-1; i >= 0; i--){
-        //for(int i = 0; i >= 0; i--){
-          //llvm::outs()<<i<<"\n";
           SmallVector<Value, 20> line_pe, line_mem, line_proc;
           SmallVector<Value, 20> line_wbuffer, line_obuffer, line_ibuffer;
           for(int j = accel_config.array_width-1; j >= 0; j--){

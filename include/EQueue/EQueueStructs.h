@@ -89,10 +89,11 @@ struct Device {
                     break;
                 }
             }
-            if(!slotFound)
+            if(!slotFound){
                 //the event cannot be scheduled at any slot, put to the end
                 start_time = (events[idx].end()-1)->second;
                 iter = events[idx].end();
+            }
         }
         events[idx].insert(iter, std::make_pair(start_time, start_time+exec_time));
         return start_time+exec_time;

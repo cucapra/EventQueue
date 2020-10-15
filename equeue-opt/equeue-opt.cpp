@@ -50,8 +50,11 @@ static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
 static llvm::cl::opt<std::string>
+    configFilename("config", llvm::cl::desc("Config filename"),
+                   llvm::cl::value_desc("input configuration filename"), llvm::cl::init(""));
+static llvm::cl::opt<std::string>
     jsonFilename("json", llvm::cl::desc("Json filename"),
-                   llvm::cl::value_desc("input json filename"), llvm::cl::init("../test/out/out.json"));
+                   llvm::cl::value_desc("json filename for file to log tracing (trace event format)"), llvm::cl::init("../test/out/out.json"));
 static llvm::cl::opt<std::string>
     outputFilename("o", llvm::cl::desc("Output filename"),
                    llvm::cl::value_desc("filename"), llvm::cl::init("-"));
@@ -140,7 +143,21 @@ int main(int argc, char **argv) {
   }
   
   if(generateInputFile){
-    MLIRGenImpl generator(context);
+    MLIRGenImpl generator(context);	  
+    
+    std::string config_fn;
+	  if (configFilename!=""){ config_fn = configFilename.c_str();
+	    std::ifstream config_fp(config_fn);
+	    if ( config_fp ) {
+          std::stringstream configBuffer;
+          configBuffer << config_fp.rdbuf();
+          generator.loadConfiguration(configBuffer);
+          config_fp.close();
+      } else {
+        llvm::errs() << "cannot find configration file"<<configFilename.c_str()<<"!\n";
+      }
+    }
+    
     generator.scaleSimGenerator();
   }
   else{
@@ -159,6 +176,7 @@ int main(int argc, char **argv) {
 	  
     auto module = loadFileAndProcessModule(context);
 	  PassManager pm(module->getContext());
+
 	  
 	  std::string json_fn;
 	  if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
