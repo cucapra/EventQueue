@@ -18,7 +18,6 @@ void MLIRGenImpl::scaleSimGenerator(){
   // ofmap px
   int px_ofmap = E_h * E_w * layer_config.num_filter;
   int e2 = E_h * E_w;
-  llvm::outs()<<E_h<<" "<<E_w<<" "<<px_per_conv<<" "<<px_ofmap<<" "<<e2<<"\n";
   
   
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());  
@@ -181,85 +180,110 @@ void MLIRGenImpl::scaleSimGenerator(){
           
           Value start_compute_signal = start_op();
           Value compute_signal, prev_compute_signal;
+          SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, filter_flight, ofmap_flight;
+          for(int r = 0; r < row_this_fold; r++){//par_for
+            SmallVector<Value, 20> ifmap_flight_line, filter_flight_line, ofmap_flight_line;
+            for(int c = 0 ; c < col_this_fold; c++){//par_for
+              auto pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c] }, 
+                [&](ValueRange ins){
+                filter = read_op(ins[1]);
+                ifmap = read_op(ins[0],ValueRange{}, 1);
+                ofmap = std_mulf(ifmap, filter);
+                Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                ofmap = std_addf(ofmap, ofmap_old);
+                return_op(ValueRange{ifmap, filter, ofmap});
+              });
+              
+              compute_signal = pe_res[0];
+              ifmap_flight_line.push_back(pe_res[1]);//c
+              filter_flight_line.push_back(pe_res[2]);//c
+              ofmap_flight_line.push_back(pe_res[3]);//c
+              if(c==0 && r==0){
+                prev_compute_signal = compute_signal;
+              } else {
+                prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
+              }
+            }
+            ifmap_flight.push_back(ifmap_flight_line);//r
+            filter_flight.push_back(filter_flight_line);//r
+            ofmap_flight.push_back(ofmap_flight_line);//r
+          }
+          await_op(ValueRange{prev_compute_signal});
+          
+          start_compute_signal = start_op();
+          //Value compute_signal, prev_compute_signal;
           for(int c = 0 ; c < col_this_fold; c++){//par_for
             for(int r = 0; r < row_this_fold; r++){//par_for
               if(c!=col_this_fold-1 && r!=row_this_fold-1){
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  ifmap_flight[r][c], filter_flight[r][c], ofmap_flight[r][c], obuffer2s[r][c], 
                   ibuffer2s[r][c+1], wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
                   [&](ValueRange ins){
-                  filter = read_op(ins[1]);
+                  filter = ins[1];
                   write_op(filter, ins[4]);
-                  ifmap = read_op(ins[0],ValueRange{}, 1);
+                  ifmap = ins[0];
                   write_op(ifmap, ins[3], 1);
-                  ofmap = std_mulf(ifmap, filter);
-                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                  ofmap = std_addf(ofmap, ofmap_old);
-                  write_op(ofmap, ins[2], 2);
+                  ofmap = ins[2];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
                     t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
                     write_op(c0, ins[2], 2);
                     write_op(ofmap, ins[5], c);
+                  }else{
+                    write_op(ofmap, ins[2], 2);
                   }
                   return_op(ValueRange{});
                 })[0];
               } else if(c==col_this_fold-1 && r!=row_this_fold-1){
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  filter_flight[r][c], ofmap_flight[r][c], obuffer2s[r][c], 
                   wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
                   [&](ValueRange ins){
-                  filter = read_op(ins[1]);
+                  filter = ins[0];
                   write_op(filter, ins[3]);
-                  ifmap = read_op(ins[0],ValueRange{}, 1);
-                  ofmap = std_mulf(ifmap, filter);
-                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                  ofmap = std_addf(ofmap, ofmap_old);
-                  write_op(ofmap, ins[2], 2);
+                  ofmap = ins[1];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
                     t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
                     write_op(c0, ins[2], 2);
                     write_op(ofmap, ins[4], c);
+                  }else{
+                    write_op(ofmap, ins[2], 2);
                   }
                   return_op(ValueRange{});
                 })[0];
               } else if(c!=col_this_fold-1 && r==row_this_fold-1){
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  ifmap_flight[r][c], ofmap_flight[r][c], obuffer2s[r][c], 
                   ibuffer2s[r][c+1], obuffer}, // a little violation of resource control
                   [&](ValueRange ins){
-                  filter = read_op(ins[1]);
-                  ifmap = read_op(ins[0],ValueRange{}, 1);
+                  ifmap = ins[0];
                   write_op(ifmap, ins[3], 1);
-                  ofmap = std_mulf(ifmap, filter);
-                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                  ofmap = std_addf(ofmap, ofmap_old);
-                  write_op(ofmap, ins[2], 2);
+                  ofmap = ins[1];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
                     t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
                     write_op(c0, ins[2], 2);
                     write_op(ofmap, ins[4], c);
+                  }else{
+                    write_op(ofmap, ins[2], 2);
                   }
                   return_op(ValueRange{});
                 })[0];
               } else {
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                  ofmap_flight[r][c], obuffer2s[r][c], 
                   obuffer}, // a little violation of resource control
                   [&](ValueRange ins){
-                  filter = read_op(ins[1]);
-                  ifmap = read_op(ins[0],ValueRange{}, 1);
-                  ofmap = std_mulf(ifmap, filter);
-                  Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                  ofmap = std_addf(ofmap, ofmap_old);
-                  write_op(ofmap, ins[2], 2);
+                  ofmap = ins[0];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
                     t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
-                    write_op(c0, ins[2], 2);
-                    write_op(ofmap, ins[3], c);
+                    write_op(c0, ins[1], 2);
+                    write_op(ofmap, ins[2], c);
+                  }else{
+                    write_op(ofmap, ins[1], 2);
                   }
                   return_op(ValueRange{});
                 })[0];
@@ -383,39 +407,65 @@ void MLIRGenImpl::scaleSimGenerator(){
             /// -------- copy weights to PE array ---------
             /// ===========================================
             Value c0 = std_constant_index(0);
+            Value start_cpy;
             
+            Value filter_cpy, prev_filter_cpy;
             for(int t = 0; t < row_this_fold-1; t++){//seq_for
-              Value filter_cpy, prev_filter_cpy;
-              
-              Value start_cpy = start_op();
+              start_cpy = start_op();
               for(int c = 0; c < col_this_fold; c++){//par_for
-                Value mem_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
-                //......................................................
-                // This is wrong. we cannot functionally specify what it is doing. 
-                // how to model one clock cycle?
-                //......................................................
-                for(int r = 0; r < row_this_fold-1; r++){//par_for
-                  filter_cpy = LaunchOpBuilder(mem_cpy_end, procs[r][c], ValueRange{wbuffer2s[r][c], wbuffer2s[r+1][c]}, 
+                filter_cpy = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
+                if(c==0){
+                  prev_filter_cpy=control_and(ValueRange{filter_cpy});
+                }else{
+                  prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
+                }
+              }
+              await_op(ValueRange{prev_filter_cpy});
+              
+              start_cpy = start_op();
+              SmallVector<SmallVector<Value, 20>, 20> ifmap_flight;
+              for(int r = 0; r < row_this_fold-1; r++){//par_for
+                SmallVector<Value, 20> ifmap_flight_line;
+                for(int c = 0; c < col_this_fold; c++){//par_for
+                  auto pe_res = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{wbuffer2s[r][c]}, 
                     [&](ValueRange ins){
                     filter = read_op(ins[0], ValueRange{});
-                    write_op(filter, ins[1]);
+                    return_op(ValueRange{filter});
+                  });
+                  filter_cpy = pe_res[0];
+                  ifmap_flight_line.push_back(pe_res[1]);
+                  if(c==0 && r==0){
+                    prev_filter_cpy=control_and(ValueRange{filter_cpy});
+                  }else{
+                    prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
+                  }
+                }
+                ifmap_flight.push_back(ifmap_flight_line);
+              }
+              await_op(ValueRange{prev_filter_cpy});
+              for(int r = 0; r < row_this_fold-1; r++){//par_for
+                for(int c = 0; c < col_this_fold; c++){//par_for
+                  filter_cpy = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{ifmap_flight[r][c], wbuffer2s[r+1][c]}, 
+                    [&](ValueRange ins){
+                    write_op(ins[0], ins[1]);
                     return_op(ValueRange{});
                   })[0];
-                }
-                if(c==0){
-                  prev_filter_cpy=control_and(ValueRange{filter_cpy, mem_cpy_end});
-                }else{
-                  prev_filter_cpy = control_and(ValueRange{mem_cpy_end, prev_filter_cpy, filter_cpy});
+                  if(c==0 && r==0){
+                    prev_filter_cpy=control_and(ValueRange{filter_cpy});
+                  }else{
+                    prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
+                  }
                 }
               }
               await_op(ValueRange{prev_filter_cpy});
             }
+                
             
             for(int t = 0; t < e2+row_this_fold+col_this_fold; t++){//seq_for
             //one parallel cycle
               
               // copy from sram to pe (ibuffer)
-              Value start_cpy = start_op();
+              start_cpy = start_op();
               Value compute_signal, prev_compute_signal;;
               //for(int c = 0 ; c < col_this_fold; c++){//par_for
               if (t == 0) {
@@ -436,93 +486,100 @@ void MLIRGenImpl::scaleSimGenerator(){
               
               //pe runs
               Value start_compute_signal = start_op();
-              for(int c = 0 ; c < col_this_fold; c++){//par_for
-                for(int r = 0; r < row_this_fold; r++){//par_for
+              SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, ofmap_flight;
+              for(int r = 0; r < row_this_fold; r++){//par_for
+                SmallVector<Value, 20> ifmap_flight_line, ofmap_flight_line;
+                for(int c = 0 ; c < col_this_fold; c++){//par_for
+                  // one cycle for a pe
+                  auto pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                    ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c]}, 
+                    [&](ValueRange ins){
+                    ifmap = read_op(ins[0]);
+                    filter = read_op(ins[1], ValueRange{}, 1);
+                    ofmap = std_mulf(ifmap, filter);
+                    Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                    ofmap = std_addf(ofmap, ofmap_old);
+                    return_op(ValueRange{ifmap, ofmap});
+                  });
+                  compute_signal = pe_res[0];
+                  ifmap_flight_line.push_back(pe_res[1]);
+                  ofmap_flight_line.push_back(pe_res[2]);
+                  
+                  if(c==0 && r==0){
+                    prev_compute_signal = compute_signal;
+                  } else {
+                    prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
+                  }
+                }
+                ifmap_flight.push_back(ifmap_flight_line);
+                ofmap_flight.push_back(ofmap_flight_line);
+              }
+              await_op(ValueRange{prev_compute_signal});
+              start_compute_signal = start_op();
+              for(int r = 0; r < row_this_fold; r++){//par_for
+                for(int c = 0 ; c < col_this_fold; c++){//par_for
                   // one cycle for a pe
                   if(c!=col_this_fold-1 && r!=row_this_fold-1){
-                  // compute & ifmap copy
-                  // how to model it, allow them run in parallel?
                     compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                      ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
-                      ibuffer2s[r][c+1], ibuffer2s[r+1][c], obuffer}, 
+                      ifmap_flight[r][c], ofmap_flight[r][c], 
+                      ibuffer2s[r][c+1], obuffer2s[r+1][c], obuffer}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0]);
-                      write_op(ifmap, ins[3]);
-                      filter = read_op(ins[1], ValueRange{}, 1);
-                      write_op(filter, ins[4]);
-                      ofmap = std_mulf(ifmap, filter);
-                      // not sure about "zero" case
-                      Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                      ofmap = std_addf(ofmap, ofmap_old);
+                      ifmap = ins[0];
+                      write_op(ifmap, ins[2]);
+                      ofmap = ins[1];
                       if( r+c <= t && // too early, nothing to pass
                           c > t-e2-row_this_fold && // too late, nothing to pass
                           t%e_fresh_px == 0
                       ){
-                        ofmap = std_addf(ofmap, ofmap_old);
-                        write_op(ofmap, ins[5], c);
+                        write_op(ofmap, ins[4], c);
                       } else{
-                        write_op(ofmap, ins[2], 2);
+                        write_op(ofmap, ins[3], 2);
                       }
                       return_op(ValueRange{});
                     })[0];
                   } else if( c==col_this_fold-1 && r!=row_this_fold-1 ){// compute
                     compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                      ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
-                      ibuffer2s[r+1][c], obuffer}, 
+                      ofmap_flight[r][c], 
+                      obuffer2s[r+1][c], obuffer}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0]);
-                      write_op(ifmap, ins[3]);
-                      filter = read_op(ins[1], ValueRange{}, 1);
-                      ofmap = std_mulf(ifmap, filter);
-                      Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                      ofmap = std_addf(ofmap, ofmap_old);
+                      ofmap = ins[0];
                       if( r+c <= t && // too early, nothing to pass
                           c > t-e2-row_this_fold && // too late, nothing to pass
                           t%e_fresh_px == 0
                       ){
-                        ofmap = std_addf(ofmap, ofmap_old);
-                        write_op(ofmap, ins[4], c);
+                        write_op(ofmap, ins[2], c);
                       } else{
-                        write_op(ofmap, ins[2], 2);
+                        write_op(ofmap, ins[1], 2);
                       }
                       return_op(ValueRange{});
                     })[0];
                   } else if( c!=col_this_fold-1 && r==row_this_fold-1 ){
                     compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                      ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                      ifmap_flight[r][c], ofmap_flight[r][c], 
                       ibuffer2s[r][c+1], obuffer}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0]);
-                      write_op(ifmap, ins[3]);
-                      filter = read_op(ins[1], ValueRange{}, 1);
-                      ofmap = std_mulf(ifmap, filter);
-                      Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                      ofmap = std_addf(ofmap, ofmap_old);
+                      ifmap = ins[0];
+                      write_op(ifmap, ins[2]);
+                      ofmap = ins[1];
                       if( r+c <= t && // too early, nothing to pass
                           c > t-e2-row_this_fold && // too late, nothing to pass
                           t%e_fresh_px == 0
                       ){
-                        ofmap = std_addf(ofmap, ofmap_old);
-                        write_op(ofmap, ins[4], c);
+                        write_op(ofmap, ins[3], c);
                       }
                       return_op(ValueRange{});
                     })[0];
-                  } else { //( c!=col_this_fold-1 && r==row_this_fold-1 )
+                  } else { //( c==col_this_fold-1 && r==row_this_fold-1 )
                     compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                      ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c], 
+                      ofmap_flight[r][c], 
                       obuffer}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0]);
-                      filter = read_op(ins[1], ValueRange{}, 1);
-                      ofmap = std_mulf(ifmap, filter);
-                      Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
-                      ofmap = std_addf(ofmap, ofmap_old);
+                      ofmap = ins[0];
                       if( r+c <= t && // too early, nothing to pass
                           c > t-e2-row_this_fold &&// too late, nothing to pass
                           t%e_fresh_px == 0
                       ){
-                        ofmap = std_addf(ofmap, ofmap_old);
-                        write_op(ofmap, ins[3], c);
+                        write_op(ofmap, ins[1], c);
                       }
                       return_op(ValueRange{});
                     })[0];
