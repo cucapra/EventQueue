@@ -66,12 +66,12 @@ void MLIRGenImpl::scaleSimGenerator(){
   Value accel( create_comp("accel", ValueRange{ comp, processor, sram, dma_row, dma_col}) );
   Value signal = start_op();
     
-  
+  ValueRange res;
   if(accel_config.dataflow==DataFlow::OS){
     int num_v_fold = ceil( (float)layer_config.num_filter / (float)accel_config.array_width);
     int num_h_fold = ceil( (float)e2 / (float)accel_config.array_height);
 
-    auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+    res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
       [&](ValueRange ins){
         accel = ins[0];
         Value ifmap = ins[1];
@@ -138,9 +138,11 @@ void MLIRGenImpl::scaleSimGenerator(){
         }
 
         int last_width = layer_config.num_filter % accel_config.array_width;
+        if(last_width==0) last_width = accel_config.array_width;
         int last_height = e2%accel_config.array_height;
+        if(last_height==0) last_height = accel_config.array_height;
         for(int t = 0; t < num_v_fold*num_h_fold*px_per_conv + 
-            last_width*px_per_conv + last_height; t++ ){
+            last_width + last_height; t++ ){
           int col_this_fold = accel_config.array_width;
           int row_this_fold = accel_config.array_height;
           //if(t>= num_v_fold*num_h_fold*px_per_conv) col_this_fold = last_width;
@@ -150,26 +152,32 @@ void MLIRGenImpl::scaleSimGenerator(){
           Value c0 = std_constant_index(0);
           Value col_cpy_end, prev_col_cpy;
           bool empty_col = true;
+          bool first = true;
           for(int c = 0; c < col_this_fold; c++){
-            if(t>=c && t+c < num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv){
+            if(t>=c && t+col_this_fold-c < num_v_fold*num_h_fold*px_per_conv + 
+            last_width + last_height){
               col_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);
-              if(c!=0){
+              if(!first){
                 prev_col_cpy = control_and(ValueRange{col_cpy_end, prev_col_cpy});
               }else{
                 prev_col_cpy = col_cpy_end;
+                first = false;
               }
               empty_col = false;
             }
           }
           Value row_cpy_end, prev_row_cpy;
           bool empty_row = true;
+          first = true;
           for(int r = 0; r < row_this_fold; r++){
-            if(t>=r && t+r < num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
-              row_cpy_end = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{c0}, r, 1);
-              if(r!=0){
+            if(t>=r && t+row_this_fold-r < num_v_fold*num_h_fold*px_per_conv + 
+            last_width + last_height){
+              row_cpy_end = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{c0}, col_this_fold+r, 1);
+              if(!first){
                 prev_row_cpy = control_and(ValueRange{row_cpy_end, prev_row_cpy});
               }else{
                 prev_row_cpy = row_cpy_end;
+                first = false;
               }
               empty_row = false;
             }
@@ -177,6 +185,7 @@ void MLIRGenImpl::scaleSimGenerator(){
           if(!empty_row && !empty_col) await_op(ValueRange{prev_row_cpy, prev_col_cpy});
           if(!empty_row && empty_col) await_op(ValueRange{prev_row_cpy});
           if(empty_row && !empty_col) await_op(ValueRange{prev_col_cpy});
+          
           
           Value start_compute_signal = start_op();
           Value compute_signal, prev_compute_signal;
@@ -218,36 +227,38 @@ void MLIRGenImpl::scaleSimGenerator(){
               if(c!=col_this_fold-1 && r!=row_this_fold-1){
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                   ifmap_flight[r][c], filter_flight[r][c], ofmap_flight[r][c], obuffer2s[r][c], 
-                  ibuffer2s[r][c+1], wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
+                  obuffer2s[r][c], ibuffer2s[r][c+1], wbuffer2s[r+1][c], obuffer}, 
                   [&](ValueRange ins){
-                  filter = ins[1];
-                  write_op(filter, ins[4]);
                   ifmap = ins[0];
-                  write_op(ifmap, ins[3], 1);
+                  write_op(ifmap, ins[4], 1);
+                  filter = ins[1];
+                  write_op(filter, ins[5]);
                   ofmap = ins[2];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
-                    write_op(c0, ins[2], 2);
-                    write_op(ofmap, ins[5], c);
+                    write_op(c0, ins[3], 2);
+                    //???
+                    //write_op(ofmap, ins[6], c%2);
                   }else{
-                    write_op(ofmap, ins[2], 2);
+                    write_op(ofmap, ins[3], 2);
                   }
                   return_op(ValueRange{});
                 })[0];
               } else if(c==col_this_fold-1 && r!=row_this_fold-1){
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                   filter_flight[r][c], ofmap_flight[r][c], obuffer2s[r][c], 
-                  wbuffer2s[r+1][c], obuffer}, // a little violation of resource control
+                  wbuffer2s[r+1][c], obuffer}, 
                   [&](ValueRange ins){
                   filter = ins[0];
                   write_op(filter, ins[3]);
                   ofmap = ins[1];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
                     write_op(c0, ins[2], 2);
                     write_op(ofmap, ins[4], c);
+                    //llvm::outs()<<"second"<<c<<"\n";
                   }else{
                     write_op(ofmap, ins[2], 2);
                   }
@@ -262,7 +273,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                   write_op(ifmap, ins[3], 1);
                   ofmap = ins[1];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
                     write_op(c0, ins[2], 2);
                     write_op(ofmap, ins[4], c);
@@ -278,7 +289,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                   [&](ValueRange ins){
                   ofmap = ins[0];
                   if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv+last_height){
+                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
                     c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
                     write_op(c0, ins[1], 2);
                     write_op(ofmap, ins[2], c);
@@ -321,7 +332,7 @@ void MLIRGenImpl::scaleSimGenerator(){
     auto remaining_cols = layer_config.num_filter;
     
     //isolated from above
-    auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+    res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
       [&](ValueRange ins){
         accel = ins[0];
         Value ifmap = ins[1];
@@ -600,6 +611,7 @@ void MLIRGenImpl::scaleSimGenerator(){
     });
     //builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
   }
+  await_op(ValueRange{res[0]});
   std_ret();
   /// ------ end ---------
   theModule.print(llvm::outs());

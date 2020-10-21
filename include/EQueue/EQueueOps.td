@@ -287,7 +287,7 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value value, ValueRange buffer, int64_t bank = 0"
+    "Builder builder, OperationState &result, Value value, Value buffer, int64_t bank = 0"
 	>];
   let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, OptionalAttr<I64Attr>: $bank);
   let extraClassDeclaration = [{

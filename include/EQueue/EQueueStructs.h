@@ -62,7 +62,7 @@ struct Device {
     void deleteOutdatedEvents(int idx, uint64_t now_time){
         auto it = events[idx].begin();
         for(; it != events[idx].end(); it++){
-            if(it->first >= now_time){
+            if(it->second >= now_time){
                 break;
             }
         }
@@ -81,9 +81,8 @@ struct Device {
         }else if (events[idx].size() > 1) {
             bool slotFound = false;
             for(; iter+1 != events[idx].end(); iter++){
-                if( iter->second < start_time && (iter+1)->first - iter->second > 
-                    exec_time) {
-                    start_time = iter->second;
+                if( iter->second <= start_time && (iter+1)->first < 
+                    start_time + exec_time) {
                     iter++;
                     slotFound = true;
                     break;
@@ -113,7 +112,7 @@ struct Device {
             device->deleteOutdatedEvents(i, start_time);
             auto e = device->events[idx_list[i++]];
             if(!e.empty())
-                start.push_back((e.end()-1)->second+1);
+                start.push_back( (e.end()-1)->second );
         }
         uint64_t start_t = *std::max_element(start.begin(), start.end());
         

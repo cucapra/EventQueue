@@ -212,7 +212,7 @@ static ParseResult parseMemDeallocOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // MemWriteOp 
 //===----------------------------------------------------------------------===//
-void MemWriteOp::build(Builder builder, OperationState &result, Value value, ValueRange buffer, int64_t bank) {
+void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, int64_t bank) {
   result.addOperands(value);
   result.addOperands(buffer);
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));

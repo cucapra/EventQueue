@@ -129,7 +129,6 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     }
     auto dtype = Op.getDataType().str();
     auto banks = Op.getBank();
-    
     auto key = valueIds[op->getResults()[0]];
     if (Op.getMemType() == "DRAM")
       deviceMap[key] = std::make_unique<xilinx::equeue::DRAM>(deviceId, banks, dlines, dtype);
