@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    generator.scaleSimGenerator();
+    generator.linalgGenerator1();
   }
   else{
     // Set up the input file.

@@ -66,7 +66,12 @@ struct Device {
                 break;
             }
         }
-        events[idx].erase(events[idx].begin(), it);
+        if( it!=events[idx].end() ){ //do not delete the last event
+          events[idx].erase(events[idx].begin(), it);
+        }
+        else{
+           events[idx].erase(events[idx].begin(), it-1);
+        }
     }
     //schedule the task on this device
     uint64_t scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, bool cleanEvents=false){
@@ -101,19 +106,22 @@ struct Device {
     template <class T>
     uint64_t  scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, std::vector<int> idx_list, std::initializer_list<T> dlist )
     {
+        
         std::vector<uint64_t> start;
         start.push_back(start_time);
         start.push_back( (events[idx].end()-1)->second+1 );
         int i = 0;
-        deleteOutdatedEvents(i, start_time);
+       
         //schedule right after the latest end time of all events
         for( auto device : dlist )
-        {
-            device->deleteOutdatedEvents(i, start_time);
+        {   
+            device->deleteOutdatedEvents(idx_list[i], start_time);
             auto e = device->events[idx_list[i++]];
-            if(!e.empty())
+            if(!e.empty()){
                 start.push_back( (e.end()-1)->second );
+            }
         }
+        
         uint64_t start_t = *std::max_element(start.begin(), start.end());
         
         events[idx].push_back(std::make_pair(start_t, exec_time+start_t));

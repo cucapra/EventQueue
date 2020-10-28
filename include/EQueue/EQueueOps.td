@@ -471,8 +471,7 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     "ValueRange offset = ValueRange{}, int64_t src_bank = 0, int64_t dest_bank = 0"
 	>];
   let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, 
-                       Variadic<Index>:$offset, OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank
-                       );
+                       Variadic<Index>:$offset, OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank);
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
     Value getDMAHandler(){

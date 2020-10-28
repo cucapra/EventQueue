@@ -120,6 +120,7 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
 {
   LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op: "<<to_string(c.op)<<"\n");
   mlir::Operation *op = c.op;
+  LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op: "<<*c.op<<"\n");
   uint64_t execution_time = 1;
   if (auto Op = mlir::dyn_cast<xilinx::equeue::CreateMemOp>(op)) {
     auto shape = Op.getShape();
@@ -163,12 +164,12 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     return mem->scheduleEvent(idx, time, execution_time, true);
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemCopyOp>(op)) {
-    //TODO: offset
+    LLVM_DEBUG(llvm::dbgs()<<"here----"<<"\n");
     int srcLines = 1;
     int destLines = 1;
     if(!Op.hasOffset()){
-      int srcLines = getMemVolume( Op.getSrcBuffer() );
-      int destLines = getMemVolume( Op.getDestBuffer() );
+      srcLines = getMemVolume( Op.getSrcBuffer() );
+      destLines = getMemVolume( Op.getDestBuffer() );
     }
     int dlines = std::min(srcLines, destLines);
     
@@ -178,16 +179,19 @@ uint64_t modelOp(const uint64_t &time, OpEntry &c)
     auto srcMem = static_cast<xilinx::equeue::Memory *>(deviceMap[srcKey].get());
     c.mem_tids.push_back(srcMem->uid);
     uint64_t readTime = srcMem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Read);
+    
     auto destMem = static_cast<xilinx::equeue::Memory *>(deviceMap[destKey].get());
     c.mem_tids.push_back(destMem->uid);
     uint64_t writeTime = destMem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Write);
+
     //int total_size = srcMem->total_size;
     //int volume = dlines * total_size;
     int volume = dlines;
     auto key = valueIds[Op.getDMAHandler()];
     auto dma = static_cast<xilinx::equeue::DMA *>(deviceMap[key].get());
     uint64_t dmaTime = dma->getTransferCycles(volume);
-    execution_time = std::max({readTime, writeTime, dmaTime});
+    execution_time = std::max({readTime, writeTime, dmaTime});        
+    LLVM_DEBUG(llvm::dbgs()<<"time----"<<execution_time<<"\n");
     //clean outdated events
     int src_idx = Op.getSrcBank();
     int dest_idx = Op.getDestBank();
@@ -410,11 +414,11 @@ bool waitForSignal(mlir::Operation* op, mlir::Value in){
   auto signal = getSignalId(valueIds[in]);
   auto op_block_cycle = blockExs[op->getBlock()];
   auto in_block_cycle = 1;
-  //if(to_string(op)!="equeue.await"){
+  if(to_string(op)!="equeue.await"){
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] "<<to_string(op)<<"\n");
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] sending to waitforsignal(op,in) "<<in<<"\n");
     LLVM_DEBUG(llvm::dbgs()<<"[waitforsignal] aliasing "<<signal<<"\n");
-  //}
+  }
   if(signal.getDefiningOp())
     in_block_cycle = blockExs[signal.getDefiningOp()->getBlock()];
   if( !valueMap.count( signal ) ){

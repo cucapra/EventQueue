@@ -20,6 +20,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
+#include "llvm/Support/Debug.h"
 
 #include "EQueue/EQueueTraits.h"
 using namespace mlir;
