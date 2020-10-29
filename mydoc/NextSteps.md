@@ -2,6 +2,23 @@
 
 This is to log my random thoughts on future steps...
 
+#### Oct 29th
+
+Three directions we can go (interest level goes along with appearance order):
+
+- Linalg/Loop to equeue dialect
+  - Make specific compiler that targets systolic array first and then...
+  - We might be able to come up with user annotations
+
+- Generate fast simulation
+  - Comparing among different dataflow doesn't work
+  - But inside the same dataflow, we can try different buffer size 
+    - if the allocation is valid
+    - which allocation works best
+
+- Verification
+  - Functional correctness check
+
 #### Oct 28th
 
 Some thoughts/confusions on high level abstraction
