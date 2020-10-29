@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    generator.linalgGenerator1();
+    generator.linalgGenerator2();
   }
   else{
     // Set up the input file.
