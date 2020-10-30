@@ -158,7 +158,7 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     auto key = getAllocDevice(Op.getBuffer());
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
-    execution_time = mem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Read);
+    execution_time = mem->getReadOrWriteCycles(dlines,  xilinx::equeue::MemOp::Read);
     int idx = Op.getBank();
     return mem->scheduleEvent(idx, time, execution_time, true);
   }

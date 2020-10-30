@@ -63,14 +63,12 @@ struct Device {
         auto it = events[idx].begin();
         for(; it != events[idx].end(); it++){
             if(it->second >= now_time){
+                if(it!=events[idx].begin()){
+                  it--;
+                  events[idx].erase(events[idx].begin(), it);
+                }
                 break;
             }
-        }
-        if( it!=events[idx].end() ){ //do not delete the last event
-          events[idx].erase(events[idx].begin(), it);
-        }
-        else{
-           events[idx].erase(events[idx].begin(), it-1);
         }
     }
     //schedule the task on this device
@@ -109,7 +107,7 @@ struct Device {
         
         std::vector<uint64_t> start;
         start.push_back(start_time);
-        start.push_back( (events[idx].end()-1)->second+1 );
+        start.push_back( (events[idx].end()-1)->second );
         int i = 0;
        
         //schedule right after the latest end time of all events
