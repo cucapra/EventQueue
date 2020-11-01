@@ -423,17 +423,6 @@ void MLIRGenImpl::scaleSimGenerator(){
               // loop through the PE row
               for(int t = 0; t < row_this_fold-1; t++){//seq_for
                 start_cpy = start_op();
-                // this loop seems to cpy the first row
-                for(int c = 0; c < col_this_fold; c++){//par_for
-                  input_cpy = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
-                  if(c==0){
-                    prev_input_cpy=control_and(ValueRange{input_cpy});
-                  }else{
-                    prev_input_cpy = control_and(ValueRange{prev_input_cpy, input_cpy});
-                  }
-                }
-                await_op(ValueRange{prev_input_cpy});
-                start_cpy = start_op();
                 SmallVector<SmallVector<Value, 20>, 20> ifmap_flight;
                 //-----------------------------------
                 // read
@@ -461,6 +450,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                 }
                 await_op(ValueRange{prev_input_cpy});
                 
+                start_cpy = start_op();
                 //------------------------------
                 // write and move values
                 //--------------------------------
@@ -479,6 +469,22 @@ void MLIRGenImpl::scaleSimGenerator(){
                   }
                 }
                 await_op(ValueRange{prev_input_cpy});
+                
+                //------------------------------
+                // memcpy from sram to reg
+                //--------------------------------
+                start_cpy = start_op();
+                // this loop seems to cpy the first row
+                for(int c = 0; c < col_this_fold; c++){//par_for
+                  input_cpy = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
+                  if(c==0){
+                    prev_input_cpy=control_and(ValueRange{input_cpy});
+                  }else{
+                    prev_input_cpy = control_and(ValueRange{prev_input_cpy, input_cpy});
+                  }
+                }
+                await_op(ValueRange{prev_input_cpy});
+                
               }
               
               // computing starts
@@ -733,16 +739,6 @@ void MLIRGenImpl::scaleSimGenerator(){
               
               Value filter_cpy, prev_filter_cpy;
               for(int t = 0; t < row_this_fold-1; t++){//seq_for
-                start_cpy = start_op();
-                for(int c = 0; c < col_this_fold; c++){//par_for
-                  filter_cpy = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
-                  if(c==0){
-                    prev_filter_cpy=control_and(ValueRange{filter_cpy});
-                  }else{
-                    prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
-                  }
-                }
-                await_op(ValueRange{prev_filter_cpy});
                 
                 start_cpy = start_op();
                 SmallVector<SmallVector<Value, 20>, 20> ifmap_flight;
@@ -765,6 +761,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                   ifmap_flight.push_back(ifmap_flight_line);
                 }
                 await_op(ValueRange{prev_filter_cpy});
+                start_cpy = start_op();
                 for(int r = 0; r < row_this_fold-1; r++){//par_for
                   for(int c = 0; c < col_this_fold; c++){//par_for
                     filter_cpy = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{ifmap_flight[r][c], wbuffer2s[r+1][c]}, 
@@ -777,6 +774,16 @@ void MLIRGenImpl::scaleSimGenerator(){
                     }else{
                       prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
                     }
+                  }
+                }
+                await_op(ValueRange{prev_filter_cpy});
+                start_cpy = start_op();
+                for(int c = 0; c < col_this_fold; c++){//par_for
+                  filter_cpy = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
+                  if(c==0){
+                    prev_filter_cpy=control_and(ValueRange{filter_cpy});
+                  }else{
+                    prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
                   }
                 }
                 await_op(ValueRange{prev_filter_cpy});
