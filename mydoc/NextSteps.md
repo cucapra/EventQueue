@@ -2,6 +2,41 @@
 
 This is to log my random thoughts on future steps...
 
+#### Nov 3th
+
+- lower to equeue dialect:
+  - scf.parallel => unrolling & **introduce hardware** control_and(), equeue.await()
+  - scf.for => unrolling
+- It might be redundant to have signals if everyting is expressable in parallel & sequential for, but unrolling everything help us get rid of if else and makes simulator simple?
+  - std.load => equeue.load
+  
+- scf.parallel => equeue dialect
+
+  - launch in accel { generic (E, F, H, W) (parallel, parallel, parallel, parallel) }
+
+  - launch in accel {generic (E, F, H/Ah, W/(Aw*reg_size), Ah, Aw, reg_size) (reduction, reduction, reduction, parallel, parallel, reduction) }
+
+  - launch in accel { for E, F, H/Ah, W/(Aw*reg_size); **parallel_for Ah, Aw ; launch in pe { generic reg_size }** } 
+
+    - Parallel is not possible without hardware's help
+
+    - ```mlir
+      ibuffer = load ibuffers(ah, aw) memref<structure> 
+      ibuffer = load ibuffers(ah, aw) memref<structure> 
+      ibuffer_next = load ibuffers(ah, aw+1) memref<structure>
+      ifmap = equeue.load(ibuffer)
+      ifmap = equeue.store(ibuffer)
+      equeue.launch(signal, pe_core, ifmap){
+      	generic reg_size //conv1d
+      }
+      ```
+
+  - Memory behavior e.g systolic array, weight stationary
+
+    - Sounds like a big jump here
+
+
+
 #### Oct 29th
 
 Three directions we can go (interest level goes along with appearance order):

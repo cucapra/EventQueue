@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    generator.scaleSimGenerator();
+    generator.linalgGenerator2();
   }
   else{
     // Set up the input file.
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
                            allowUnregisteredDialects))) {
       return 1;
     }
-	  
+	  /*
     auto module = loadFileAndProcessModule(context);
 	  PassManager pm(module->getContext());
 
@@ -184,7 +184,7 @@ int main(int argc, char **argv) {
 	  std::stringstream traceStream;
 	  acdc::CommandProcessor proc(traceStream);
 	  proc.run(module.get());
-    json_fp << traceStream.str();
+    json_fp << traceStream.str();*/
   }
   
 

@@ -272,7 +272,7 @@ void MLIRGenImpl::linalgGenerator1(){
       auto col_signal = loopNestBuilder(lb, ub, step, {start_cpy}, [&](Value iv0, ValueRange args0) {
         
         for(int i = 0; i<5; i++){
-          auto offset = std_constant_index(1);
+          auto offset = std_constant_index(i);
           pe_signals[i] = memcpy_op(args0[0], ibuffer, ibuffer2s[i], dma, ValueRange{offset});
           Value const0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
           write_op(const0, obuffer2s[i]);

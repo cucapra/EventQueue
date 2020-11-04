@@ -341,8 +341,8 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
   }];
 }
 
-
-def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"ReturnOp">, IsolatedFromAbove, AsyncOpTrait]> {
+// IsolatedFromAbove,
+def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"ReturnOp">, AsyncOpTrait]> {
   let summary = "launch a device";
   let description = [{
     Returns a signal representing a event is finished, whose type is `::equeue::SignalType`, 

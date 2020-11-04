@@ -528,7 +528,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                       Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
                       ofmap = std_addf(ofmap, ofmap_old);
                       // precalculated
-                      // ofmap[r][c] = offmap[r][c] + w[r][c] * i[r][c] 
+                      // ofmap[r][c] = ofmap[r][c] + w[r][c] * i[r][c] 
                       return_op(ValueRange{ifmap, ofmap});
                     });
                     compute_signal = pe_res[0];
