@@ -147,6 +147,7 @@ public:
   void simpleGenerator();
   void linalgGenerator1();
   void linalgGenerator2();
+  void linalgGenerator3();
   void scaleSimGenerator();
 private:
   layerConfig layer_config;

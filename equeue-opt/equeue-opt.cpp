@@ -38,6 +38,7 @@
 
 #include "EQueue/EQueueDialect.h"
 #include "EQueue/EQueueTraits.h"
+#include "EQueue/EQueuePasses.h"
 #include "EQueue/CommandProcessor.h"
 #include "Generator/EQueueGenerator.h"
 
@@ -85,6 +86,7 @@ static llvm::cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
                  llvm::cl::init(false));
+                 
 mlir::OwningModuleRef loadFileAndProcessModule(mlir::MLIRContext &context) {
   mlir::OwningModuleRef module;
 
@@ -158,7 +160,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    generator.linalgGenerator2();
+    generator.linalgGenerator3();
   }
   else{
     // Set up the input file.
@@ -173,11 +175,13 @@ int main(int argc, char **argv) {
                            allowUnregisteredDialects))) {
       return 1;
     }
-	  /*
-    auto module = loadFileAndProcessModule(context);
-	  PassManager pm(module->getContext());
-
 	  
+    auto module = loadFileAndProcessModule(context);
+	PassManager pm(module->getContext());
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    optPM.addPass(equeue::createStructureMatchingPass());
+    pm.run(*module);
+	  /*
 	  std::string json_fn;
 	  if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
 	  std::ofstream json_fp(json_fn);

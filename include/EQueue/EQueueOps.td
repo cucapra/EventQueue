@@ -154,6 +154,7 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
 	}];
 }
 
+
 def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTrait]> {
   let summary = "Create component with sub-coponents.";
   let description = [{
@@ -173,7 +174,7 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTra
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, StringRef name, ValueRange comps">];
 
-  let arguments = (ins StrAttr:$name, Variadic<I32>:$size);
+  let arguments = (ins StrAttr:$name, Variadic<AnyType>:$comps);
   let results = (outs I32:$res);
 }
 
