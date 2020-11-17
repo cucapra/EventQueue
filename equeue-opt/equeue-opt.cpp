@@ -114,6 +114,7 @@ mlir::OwningModuleRef loadFileAndProcessModule(mlir::MLIRContext &context) {
 int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
+  mlir::equeue::registerEQueuePasses();
 
   // Register equeue passes here.
   mlir::registerDialect<xilinx::equeue::EQueueDialect>();
@@ -175,13 +176,18 @@ int main(int argc, char **argv) {
                            allowUnregisteredDialects))) {
       return 1;
     }
-	  
+	  /*
     auto module = loadFileAndProcessModule(context);
+    
 	PassManager pm(module->getContext());
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
-    optPM.addPass(equeue::createStructureMatchingPass());
+    optPM.addPass(mlir::createStructureMatchingPass());
+    module->dump();
+    llvm::outs() << "=====================\n";
     pm.run(*module);
+    module->dump();*/
 	  /*
+    
 	  std::string json_fn;
 	  if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
 	  std::ofstream json_fp(json_fn);
@@ -194,6 +200,6 @@ int main(int argc, char **argv) {
 
 
   // Keep the output file if the invocation of MlirOptMain was successful.
-  output->keep();
+  //output->keep();
   return 0;
 }

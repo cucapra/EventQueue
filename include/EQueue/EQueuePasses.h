@@ -1,22 +1,23 @@
 #ifndef EQUEUE_PASSES_H
 #define EQUEUE_PASSES_H
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassRegistry.h"
+#include "mlir/Support/LLVM.h"
 #include "llvm/ADT/ArrayRef.h"
-
+#include "llvm/ADT/StringRef.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "EQueue/EQueueOps.h"
+#include <memory>
 #include <string>
 
+
+namespace mlir{
 namespace equeue {
-std::unique_ptr<mlir::OperationPass<mlir::FuncOp>> createStructureMatchingPass(llvm::ArrayRef<std::string> structNames = {});
 
-
-//===----------------------------------------------------------------------===//
-// Registration
-//===----------------------------------------------------------------------===//
-
-/// Generate the code for registering passes.
-#define GEN_EQUEUE_PASS_REGISTRATION
-#include "EQueue/EQueuePasses.h.inc"
-
-} // end namespace equeue
+class FuncOp;
+void registerEQueuePasses();
+}
+} // end namespace mlir
 
 #endif // EQUEUE_STRUCTURE_MATCHING_H
+

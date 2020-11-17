@@ -6,8 +6,13 @@ add_mlir_dialect_library(EQueueTransforms
 
 
   DEPENDS
-  EQueuePassIncGen
+  MLIREQueueOpsIncGen
+  EQueueEDSC
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRAnalysis
+  MLIRLinalgOps
+  MLIRSCF
+  MLIRPass
 )

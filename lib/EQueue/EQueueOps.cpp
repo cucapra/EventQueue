@@ -136,6 +136,12 @@ void GetCompOp::build(Builder builder, OperationState &result, Value comp, Strin
 	result.types.push_back(i32Type);
 }
 
+void GetCompOp::build(Builder builder, OperationState &result, Value comp, StringRef name, Type resType) {
+  result.addOperands(comp);
+	result.addAttribute("name", builder.getStringAttr(name));
+	result.types.push_back(resType);
+}
+
 //===----------------------------------------------------------------------===//
 // MemAllocOp 
 //===----------------------------------------------------------------------===//

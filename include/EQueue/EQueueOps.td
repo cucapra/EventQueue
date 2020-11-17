@@ -196,9 +196,11 @@ def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value comp, StringRef name">];
+    "Builder builder, OperationState &result, Value comp, StringRef name">, 
+    OpBuilder<
+    "Builder builder, OperationState &result, Value comp, StringRef name, Type resType">];
   let arguments = (ins I32:$comp, StrAttr:$name);
-  let results = (outs I32:$res);
+  let results = (outs AnyType:$res);
   let extraClassDeclaration = [{
 		StringRef getName(){
 			return getAttr("name").cast<StringAttr>().getValue();
