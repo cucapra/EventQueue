@@ -20,11 +20,15 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/Visitors.h"
+#include "mlir/IR/BlockSupport.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/Utils.h"
 
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Builders.h"
@@ -34,7 +38,7 @@
 #include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 #include "mlir/Analysis/Liveness.h"
 
-
+#include <map>
 #include <string>
 #include "EQueue/EQueuePasses.h"
 #include "EQueue/EQueueOps.h"
@@ -50,18 +54,40 @@ using namespace xilinx::equeue;
 
 
 namespace {
+struct ParallelOpConversion : public OpRewritePattern<xilinx::equeue::LaunchOp> {
+  using OpRewritePattern<xilinx::equeue::LaunchOp>::OpRewritePattern;
+  Region *inline_region;
+  ParallelOpConversion(Region *region, MLIRContext *context):OpRewritePattern<xilinx::equeue::LaunchOp>(context){
+    inline_region=region;
+  }
+  
+  LogicalResult matchAndRewrite(xilinx::equeue::LaunchOp op,
+                                PatternRewriter &rewriter) const override {
+    //auto region = op.region();
+    
+    auto launchOp = op.clone();
+
+    
+    rewriter.inlineRegionBefore(*inline_region, launchOp.region(), launchOp.region().end());
+    rewriter.replaceOp(op, launchOp.getResults());
+    
+      //rewriter.inlineRegionBefore(region2, launch_pe->region(), launch_pe->region.end());
+    //} */   
+    return success();
+  }
+};
+
 struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, FunctionPass> {
   StructureMatchingPass()=default; 
  
   std::string structName="pe_array";
   
   void runOnFunction() override {
-
+    
     auto f = getFunction();
-
-    // Populate the worklist with the operations that need shape inference:
-    // these are operations that return a dynamic shape.
-
+    MLIRContext *context = &getContext();
+    
+    
     mlir::Operation *launchOp=nullptr;
     mlir::Operation *parallelOp=nullptr;
     f.walk([&](mlir::Operation *op) {
@@ -70,6 +96,7 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
       if (!parallelOp && isa<scf::ParallelOp>(op))
         parallelOp = op;
     });
+    
     //TODO: GET ACCEL
     auto &region = launchOp->getRegion(0);
     auto &block = region.front();
@@ -77,44 +104,56 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     accel.getDefiningOp();
     Value match_comp;
     for(auto comp_op: accel.getDefiningOp()->getOperands()){
-    //llvm::outs()<<comp_op.getDefiningOp()->getAttr("name").cast<StringAttr>().getValue()<<"\n";
       if(comp_op.getDefiningOp()->getAttr("name").cast<StringAttr>().getValue()==structName){
         match_comp = comp_op.getDefiningOp()->getOperand(0);
-        //llvm::outs()<<"found\n"<<match_comp<<"\n";
         break;
       }
     }
-    
     OpBuilder builder(&getContext());
     builder.setInsertionPointToStart(&block);
     ScopedContext scope(builder, accel.getLoc());
-    //llvm::outs()<<match_comp.getType()<<"\n";
     Value pe_array(get_comp(accel, structName, match_comp.getType()));
     
-    auto &region2 = parallelOp->getRegion(0);
-    auto &block2 = region2.front();
-    //llvm::outs()<<*block2.begin()<<"\n";
+
+    auto *original_region = &parallelOp->getRegion(0);
+    
     Liveness liveness(parallelOp);
-    auto &allInValues = liveness.getLiveOut(&block2);
+    auto &allInValues = liveness.getLiveOut(&parallelOp->getRegion(0).front());
     llvm::SmallVector<Value, 16> invalues;
     for(auto invalue: allInValues){
-      //llvm::outs()<<invalue<<"\n";
       invalues.push_back(invalue);
     }
     ValueRange invaluerange(invalues);
-    builder.setInsertionPointToStart(&block2);
-    if(auto pop = llvm::dyn_cast<ParallelOp>(parallelOp) ){
+    builder.setInsertionPointToStart(&parallelOp->getRegion(0).front());
     
-      ValueRange indexing = pop.getInductionVars();
-      Value pe(std_extract_element(pe_array, indexing));
-      //TODO: analyze and get core
-      Value proc = get_comp(pe,"proc");
-      Value signal = start_op();
-      ValueRange pe_res = LaunchOpBuilder(signal, proc, invaluerange, [&](ValueRange ins){
-        return_op(ValueRange{});
-      });
-      //builder.setInsertionPoint(pe_res[0].getDefiningOp());
-    }
+    ValueRange indexing = dyn_cast<ParallelOp>(parallelOp).getInductionVars();
+
+    Value pe = std_extract_element(pe_array, indexing);
+    //TODO: analyze and get core      
+    Value proc = get_comp(pe,"proc");
+    Value signal = start_op();
+    ValueRange pe_res = LaunchOpBuilder(signal, proc, invaluerange, [&](ValueRange ins){
+      return_op(ValueRange{});
+    });
+    auto *launch_pe = pe_res[0].getDefiningOp();
+    auto launch_next = ++Block::iterator(launch_pe);
+    auto *split_block = parallelOp->getRegion(0).front().splitBlock(launch_next);
+    auto *final_block = split_block->splitBlock(&split_block->back());
+    split_block->moveBefore(&launch_pe->getRegion(0).back());    
+    (++Region::iterator(split_block))->front().moveBefore(split_block, split_block->end());
+    (++Region::iterator(split_block))->erase();
+    
+    final_block->front().moveBefore(&parallelOp->getRegion(0).front(),
+      parallelOp->getRegion(0).front().end());
+    final_block->erase();
+    //OwningRewritePatternList patterns;
+    //patterns.insert<ParallelOpConversion>(original_region, context);
+    
+    //ConversionTarget target(getContext());
+    //target.addLegalDialect<xilinx::equeue::EQueueDialect, StandardOpsDialect>();
+
+    //if (failed(applyPartialConversion(f, target, patterns)))
+    //  signalPassFailure();
   }
 };
 } // end anonymous namespace
