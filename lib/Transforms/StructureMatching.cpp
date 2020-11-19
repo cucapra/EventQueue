@@ -79,11 +79,16 @@ struct ParallelOpConversion : public OpRewritePattern<xilinx::equeue::LaunchOp> 
 
 struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, FunctionPass> {
   StructureMatchingPass()=default; 
- 
-  std::string structName="pe_array";
+  StructureMatchingPass(const StructureMatchingPass& pass) {}
+
+
+
+  Option<std::string> structOption{*this, "struct-name",
+                                   llvm::cl::desc("...")};
+
   
   void runOnFunction() override {
-    
+    std::string structName = structOption;
     auto f = getFunction();
     MLIRContext *context = &getContext();
     
@@ -112,6 +117,7 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     OpBuilder builder(&getContext());
     builder.setInsertionPointToStart(&block);
     ScopedContext scope(builder, accel.getLoc());
+
     Value pe_array(get_comp(accel, structName, match_comp.getType()));
     
 

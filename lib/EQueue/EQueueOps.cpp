@@ -191,6 +191,24 @@ static ParseResult parseMemAllocOp(OpAsmParser &parser,
 }
 
 //===----------------------------------------------------------------------===//
+// ReferAllocMemOp 
+//===----------------------------------------------------------------------===//
+void ReferAllocMemOp::build(Builder builder, OperationState &result, Value buffer) {
+  result.addOperands(buffer);
+	auto I32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(I32Type);
+}
+
+//===----------------------------------------------------------------------===//
+// DereferAllocMemOp 
+//===----------------------------------------------------------------------===//
+void DereferAllocMemOp::build(Builder builder, OperationState &result, Value reference, Type bufferType) {
+  result.addOperands(reference);
+	result.types.push_back(bufferType);
+}
+
+
+//===----------------------------------------------------------------------===//
 // MemDeallocOp 
 //===----------------------------------------------------------------------===//
 void MemDeallocOp::build(Builder builder, OperationState &result, ValueRange buffer) {

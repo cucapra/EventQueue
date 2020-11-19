@@ -253,6 +253,56 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
 	}];
 }
 
+// memory operations
+def EQueue_ReferAllocMemOp: EQueue_Op<"reference_alloc"> {
+	let summary = "Referece allocated memory to i32 references.";
+  let description = [{
+    Returns a i32 reference representing a buffer address.
+    This operation takes in a buffer as operand, modeling referencing a buffer 
+
+    Example:
+
+    ```mlir
+    %1 = equeue.create_mem [1024], f32, SRAM
+    %2 = equeue.alloc %1, [5], f32 : memref<5xf32>
+    %3 = "equeue.reference_alloc"(%2): memref<5xf32>->i32
+    ```
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value buffer"
+	>];
+	let arguments = (ins AnyType:$buffer);
+	let results = (outs I32: $reference);
+
+}
+
+
+// memory operations
+def EQueue_DereferAllocMemOp: EQueue_Op<"dereference_alloc"> {
+	let summary = "Dereferece i32 reference to get allocated memory.";
+  let description = [{
+    Returns a buffer.
+    This operation takes in a reference of i32 type as operand, 
+    modeling dereferencing an address. 
+
+    Example:
+
+    ```mlir
+    %1 = equeue.create_mem [1024], f32, SRAM
+    %2 = equeue.alloc %1, [5], f32 : memref<5xf32>
+    %3 = "equeue.reference_alloc"(%2): memref<5xf32>->i32
+    %3 = "equeue.dereference_alloc"(%4): i32->memref<5xf32>
+    ```
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value reference, Type bufferType"
+	>];
+	let arguments = (ins I32: $reference);
+	let results = (outs AnyType:$buffer);
+
+}
+
+
 def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {
 	let summary = "Dealloc memory of given size on memory component.";
   let description = [{
