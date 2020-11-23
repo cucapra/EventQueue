@@ -8,7 +8,7 @@ using namespace mlir::edsc::intrinsics;
 using namespace std;
 
 
-
+/*
 void MLIRGenImpl::scaleSimGenerator(){
   // output feature map
   int E_h = (layer_config.ifmap_height - layer_config.filter_height - layer_config.stride) / layer_config.stride;
@@ -934,3 +934,4 @@ void MLIRGenImpl::scaleSimGenerator(){
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }
+*/

@@ -51,22 +51,19 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
     Example:
 
     ```mlir
-    %1 = equeue.create_mem Mem, [1024], f32, SRAM
+    %1 = equeue.create_mem [1024], f32, SRAM
     ```
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, StringRef name, ArrayRef<int64_t> shape, StringRef data, StringRef type, int64_t banks=1"
+    "Builder builder, OperationState &result, ArrayRef<int64_t> shape, StringRef data, StringRef type, int64_t banks=1"
     >
   ];
-  let arguments = (ins StrAttr:$name, I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type, OptionalAttr<I64Attr>:$banks);
+  let arguments = (ins I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type, OptionalAttr<I64Attr>:$banks);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
   let extraClassDeclaration = [{
-		StringRef getName(){
-			return getAttr("name").cast<StringAttr>().getValue();
-		};
     SmallVector<int, 8> getShape(){
       auto attr = getAttr("shape").cast<DenseIntElementsAttr>();
       SmallVector<int, 8> shape(attr.getValues<int64_t>());
@@ -117,8 +114,8 @@ def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTra
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, StringRef name, StringRef type">];
-  let arguments = (ins StrAttr:$name, EQueue_CreateProcOpAttr:$type);
+    "Builder builder, OperationState &result, StringRef type">];
+  let arguments = (ins EQueue_CreateProcOpAttr:$type);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
@@ -144,8 +141,8 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, StringRef name">];
-  let arguments = (ins StrAttr:$name);
+    "Builder builder, OperationState &result">];
+  //let arguments = (ins StrAttr:$name);
   let results = (outs I32:$res);
   let extraClassDeclaration = [{
 		StringRef getName(){
@@ -155,7 +152,7 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
 }
 
 
-def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTrait]> {
+def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [NoSideEffect, StructureOpTrait]> {
   let summary = "Create component with sub-coponents.";
   let description = [{
     The operation takes variable number of operands representing component handlers.
@@ -167,18 +164,42 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp", [NoSideEffect, StructureOpTra
     ```mlir
     %accel_mem = equeue.create_mem Mem, [64], f32, SRAM
     %accel_core = equeue.create_proc Kernel, ARMr5
-    %accel_dma = "equeue.create_dma"(){name = "DMA"}:()->i32
-    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem){name = "DMA"}:(i32, i32, i32) -> i32
+    %accel_dma = "equeue.create_dma"(){}:()->i32
+    %accel = "equeue.create_comp_field"(%accel_core, %accel_dma, %accel_mem){name = "core dma mem"}:(i32, i32, i32) -> i32
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, StringRef name, ValueRange comps">];
-
-  let arguments = (ins StrAttr:$name, Variadic<AnyType>:$comps);
+    "Builder builder, OperationState &result, ArrayRef<std::string> names, ValueRange comps">];
+  //AnyType with a name is fine
+  let arguments = (ins StrAttr:$names, Variadic<AnyType>:$comps);
   let results = (outs I32:$res);
 }
 
-def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
+def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [NoSideEffect, StructureOpTrait]> {
+  let summary = "Add sub-coponents to existing component.";
+  let description = [{
+    The operation takes a component reference and a variable number of operands representing component handlers.
+    It adds field to existing component or modify existing a component field and returns nothing.
+
+    Example:
+
+    ```mlir
+    %accel_mem = equeue.create_mem Mem, [64], f32, SRAM
+    %accel_core = equeue.create_proc Kernel, ARMr5
+    %accel = "equeue.create_comp_field"(%accel_core, %accel_dma, %accel_mem){name = "core dma"}:(i32, i32, i32) -> i32
+    %accel_dma = "equeue.create_dma"(){name = "DMA"}:()->i32
+    "equeue.add_comp_field"(%accel, %accel_mem){name = "mem"}:(i32, i32) -> ()
+    
+    ```
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value comp, ArrayRef<std::string> names, ValueRange comps">];
+
+  let arguments = (ins I32: $comp, StrAttr:$names, Variadic<AnyType>:$comps);
+  //let results = (outs I32:$res);
+}
+
+def EQueue_GetCompOp : EQueue_Op<"get_comp_field", [NoSideEffect, StructureOpTrait]> {
   let summary = "Get component from a composed component.";
   let description = [{
     The operation takes variable number of operands representing component handlers.
@@ -188,11 +209,11 @@ def EQueue_GetCompOp : EQueue_Op<"get_comp", [NoSideEffect, StructureOpTrait]> {
     Example:
 
     ```mlir
-    %accel_mem = equeue.create_mem Mem, [64], f32, SRAM
-    %accel_core = equeue.create_proc Kernel, ARMr5
-    %accel_dma = "equeue.create_dma"(){name = "DMA"}:()->i32
-    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem){name = "ACCEL"}:(i32, i32, i32) -> i32
-    %get_dma = "equeue.get_comp"(%accel_dma) {name = "DMA"}:(i32) -> i32
+    %accel_mem = equeue.create_mem [64], f32, SRAM
+    %accel_core = equeue.create_proc ARMr5
+    %accel_dma = "equeue.create_dma"():()->i32
+    %accel = "equeue.create_comp"(%accel_core, %accel_dma, %accel_mem){name = "core DMA mem"}:(i32, i32, i32) -> i32
+    %get_dma = "equeue.get_comp_field"(%accel_dma) {name = "DMA"}:(i32) -> i32
     ```
   }];
   let builders = [OpBuilder<
@@ -253,54 +274,6 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
 	}];
 }
 
-// memory operations
-def EQueue_ReferAllocMemOp: EQueue_Op<"reference_alloc"> {
-	let summary = "Referece allocated memory to i32 references.";
-  let description = [{
-    Returns a i32 reference representing a buffer address.
-    This operation takes in a buffer as operand, modeling referencing a buffer 
-
-    Example:
-
-    ```mlir
-    %1 = equeue.create_mem [1024], f32, SRAM
-    %2 = equeue.alloc %1, [5], f32 : memref<5xf32>
-    %3 = "equeue.reference_alloc"(%2): memref<5xf32>->i32
-    ```
-  }];
-  let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value buffer"
-	>];
-	let arguments = (ins AnyType:$buffer);
-	let results = (outs I32: $reference);
-
-}
-
-
-// memory operations
-def EQueue_DereferAllocMemOp: EQueue_Op<"dereference_alloc"> {
-	let summary = "Dereferece i32 reference to get allocated memory.";
-  let description = [{
-    Returns a buffer.
-    This operation takes in a reference of i32 type as operand, 
-    modeling dereferencing an address. 
-
-    Example:
-
-    ```mlir
-    %1 = equeue.create_mem [1024], f32, SRAM
-    %2 = equeue.alloc %1, [5], f32 : memref<5xf32>
-    %3 = "equeue.reference_alloc"(%2): memref<5xf32>->i32
-    %3 = "equeue.dereference_alloc"(%4): i32->memref<5xf32>
-    ```
-  }];
-  let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value reference, Type bufferType"
-	>];
-	let arguments = (ins I32: $reference);
-	let results = (outs AnyType:$buffer);
-
-}
 
 
 def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {

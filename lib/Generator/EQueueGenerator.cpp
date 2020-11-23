@@ -8,6 +8,7 @@ using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace mlir::edsc::ops;
 using namespace std;
+/*
 void MLIRGenImpl::simpleGenerator(){
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());
 
@@ -323,7 +324,7 @@ void MLIRGenImpl::linalgGenerator1(){
               //ofmap[batch, h, w, num]
               linalg_generic_conv_nhwc(subview_ifmap, reshaped_filter, reshaped_ofmap, {1,1}, {0,0});
 
-              /*
+              
               auto par = IteratorType::Parallel;
               auto red = IteratorType::Reduction;
 
@@ -340,7 +341,7 @@ void MLIRGenImpl::linalgGenerator1(){
                      simplifyAffineExpr(w, numDims, 0),
                      c}), W({kh, kw, c, f})}, 
                   {O({b, h, w, f})},
-              mlir::edsc::ops::macRegionBuilder);            */
+              mlir::edsc::ops::macRegionBuilder);            
 
               return_op(ValueRange{});
             });
@@ -484,7 +485,7 @@ void MLIRGenImpl::linalgGenerator2(){
 }
 
 
-
+*/
 void MLIRGenImpl::linalgGenerator3(){
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());
 
@@ -502,25 +503,17 @@ void MLIRGenImpl::linalgGenerator3(){
   SmallVector<int64_t, 1> peShape;
   peShape.push_back(5);
   Value proc, mem, comp;
-  proc = create_proc("proc", "AIEngine");
-  mem = create_mem("mem", ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile", 1);
-  comp = create_comp("pe", ValueRange{mem, proc});
-  comp = std_splat(comp, VectorType::get(peShape, comp.getType()));
-  comp = create_comp("pe_array", comp);
-  /*
-  for(int i = 0; i < 5; i++){
-    proc = create_proc("proc", "AIEngine");
-    mem = create_mem("mem", ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile", 1);
-    if(i==0) {
-      comp = create_comp("pe_"+to_string(i), ValueRange{mem, proc}) ;
-    } else {
-      comp = create_comp("pe_"+to_string(i), ValueRange{mem, proc, comp});
-    }
-  }*/
-  Value sram(create_mem("mem", ArrayRef<int64_t>{ 1024 }, "f32", "SRAM", 16));
-  Value dma(create_dma("dma"));
-  Value processor(create_proc("proc", "MicroPlate") );
-  Value accel( create_comp("accel", ValueRange{ comp, processor, sram, dma}) );
+  proc = create_proc("AIEngine");
+  mem = create_mem(ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile", 1);
+  comp = create_comp(ArrayRef<std::string>{"proc", "mem"}, ValueRange{mem, proc});
+  comp = std_splat( comp, VectorType::get(peShape, comp.getType()) );
+  //comp = create_comp("pe_array", comp);
+
+  Value sram(create_mem(ArrayRef<int64_t>{ 1024 }, "f32", "SRAM", 16));
+  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc()).getResult();
+  Value processor(create_proc("MicroPlate") );
+  Value accel = create_comp(ArrayRef<std::string>{"pe_array","proc", "mem", "dma"},
+  ValueRange{comp, processor, sram, dma} );
   
   /// -------------------
   /// --    control    --

@@ -19,6 +19,7 @@ using create_dma = ValueBuilder<xilinx::equeue::CreateDMAOp>;
 using create_mem = ValueBuilder<xilinx::equeue::CreateMemOp>;
 using create_proc = ValueBuilder<xilinx::equeue::CreateProcOp>;
 using create_comp = ValueBuilder<xilinx::equeue::CreateCompOp>;
+using add_comp = OperationBuilder<xilinx::equeue::AddCompOp>;
 using get_comp = ValueBuilder<xilinx::equeue::GetCompOp>;
 
 using alloc_op = ValueBuilder<xilinx::equeue::MemAllocOp>;
