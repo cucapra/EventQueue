@@ -1,0 +1,115 @@
+for t in window_size:
+    
+    // read out current map
+    start = equeue.start() //parallel
+    for h in arr_height:
+        for w in arr_width:
+            done, ifmap_flight[h][w] = equeue.launch(ifmap_buffer=pe[h][w].ifmap_buffer) in (start, pe[h][w].core) {
+                ifmap = equeue.read(ifmap_buffer)
+                equeue.yield ifmap
+            }
+            if h= 0 and w = 0:
+                prev_done = done
+            else: 
+                prev_done = equeue.control_and(done, prev_done)
+    equeue.await(prev_done)
+
+    //shift/write current map
+    start = equeue.start() //parallel
+    for h in 1...arr_height:
+        for w in arr_width:
+            done = equeue.launch(ifmap_buffer=pe[h][w].ifmap_buffer, ifmap_flight=ifmap_flight[h-1][w]) in (start, pe[h][w].core) {
+                equeue.write(ifmap_flight, ifmap_buffer)
+            }
+            if h= 1 and w = 0:
+                prev_done = done
+            else: 
+                prev_done = equeue.control_and(done, prev_done)
+    equeue.await(prev_done)
+
+    //write a new line, ifmap_buffer is on register, ifmap_sram
+    start = equeue.start() //parallel
+    for w in arr_width:
+        done = equeue.memcopy(start, ifmap_sram, ifmap_buffer=pe[0][w].ifmap_buffer, offset, bank) //different bank to ensure parallel execution
+        if w = 0:
+            prev_done = done
+        else: 
+            prev_done = equeue.control_and(done, prev_done)
+    equeue.await(prev_done)
+
+
+//computation
+
+
+for t in ofmap_size + arr_height + arr_width:
+    
+    //calcuate the number of weights to read in in one cycle
+    write_direction = 1
+    weights_num = min(t, arr_h)
+    if t > ofmap_size:
+        write_direction = -1
+    if t > ofmap_size + arr_height: 
+        weights_num = 0
+    
+
+    //read weights in
+    start = equeue.start() 
+    for n in 0...weights_num (step=write_direction):
+        done = equeue.memcopy(start, weights_sram, weight_buffer=pe[n][0].weight_buffer, offset, bank) 
+        if w = 0:
+            prev_done = done
+        else: 
+            prev_done = equeue.control_and(done, prev_done) 
+    equeue.await(prev_done)
+
+
+    //read the current values in pe and calcuate offmap
+    start = equeue.start() 
+    for h in arr_height:
+        for w in arr_width:
+            done, weight_flight[h][w], ofmap_flight = equeue.launch(
+                start,
+                ifmap_buffer=pe[h][w].ifmap_buffer,
+                ofmap_buffer=pe[h][w].ofmap_buffer,
+                weight_buffer=pe[h][w].weight_buffer 
+                ) in (start, pe[h][w].core) {
+                ifmap = ifmap_buffer
+                weight = weight_buffer
+                ofmap_old = equeue.read(ofmap_buffer)
+                ofmap = ifmap * weight + ofmap_old
+                equeue.yield weights, ofmap
+            }
+            if h= 0 and w = 0:
+                prev_done = done
+            else: 
+                prev_done = equeue.control_and(done, prev_done)
+    equeue.await(prev_done)
+
+
+    // write back and result output
+    start = equeue.start() 
+    for r in arr_height:
+        for c in arr_width:
+             done = equeue.launch(
+                start,
+                wflight=wfmap_flight[r][c], 
+                oflight=ofmap_flight[r][c], 
+                wbuffer=wbuffer2s[r][c+1], 
+                obuffer=obuffer2s[r+1][c], 
+                ){
+                //no outputs
+                equeue.write(oflight, obuffer)
+                equeue.write(wflight, wbuffer)
+                if r+c <= t and t <= ofmap_size + arr_h +c:
+                    equeue.writeop(oflight, out_sram)
+                }   
+            }
+    equeue.await(prev_done)
+
+
+
+
+    
+
+
+

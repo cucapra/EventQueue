@@ -115,6 +115,7 @@ int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
   mlir::equeue::registerEQueuePasses();
+  mlir::equeue::registerTilingPass();
 
   // Register equeue passes here.
   mlir::registerDialect<xilinx::equeue::EQueueDialect>();

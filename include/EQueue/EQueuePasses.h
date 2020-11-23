@@ -13,9 +13,14 @@
 
 namespace mlir{
 namespace equeue {
+    
 
-class FuncOp;
+
+// class FuncOp;
 void registerEQueuePasses();
+void registerTilingPass();
+
+/// Generate the code for registering passes.
 }
 } // end namespace mlir
 
