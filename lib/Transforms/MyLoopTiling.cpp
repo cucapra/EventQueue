@@ -265,11 +265,14 @@ static void getTileableBands(FuncOp f,
     getPerfectlyNestedLoops(band, root);
     bands->push_back(band);
   };
-
-  for (auto &block : f)
-    for (auto &op : block)
-      if (auto forOp = dyn_cast<AffineForOp>(op))
-        getMaximalPerfectLoopNest(forOp);
+  for (xilinx::equeue::LaunchOp launchop: f.getOps<xilinx::equeue::LaunchOp>()){
+    for (AffineForOp forOp : launchop.getOps<AffineForOp>()) {
+      SmallVector<AffineForOp, 6> band;
+      getPerfectlyNestedLoops(band, forOp);
+      bands->push_back(band);
+    }
+  }
+  //llvm::outs()<<bands->size()<<"\n";
 }
 
 /// Reduces each tile size to the largest divisor of the corresponding trip
@@ -305,6 +308,7 @@ void MyLoopTiling::getTileSizes(ArrayRef<AffineForOp> band,
 
   // Use command-line tileSize for all loops if specified.
   if (tileSize) {
+    llvm::outs()<<tileSize<<" tileSize\n";
     tileSizes->assign(band.size(), tileSize);
     return;
   }
@@ -376,11 +380,12 @@ void MyLoopTiling::runOnFunction() {
   std::vector<SmallVector<AffineForOp, 6>> bands;
   getTileableBands(getFunction(), &bands);
 
+
   // Tile each band.
   for (auto &band : bands) {
     // Set up tile sizes; fill missing tile sizes at the end with default tile
     // size or tileSize if one was provided.
-    SmallVector<unsigned, 6> tileSizes;
+    SmallVector<unsigned, 16> tileSizes;
     getTileSizes(band, &tileSizes);
     if (llvm::DebugFlag) {
       auto diag = band[0].emitRemark("using tile sizes [");
@@ -388,7 +393,7 @@ void MyLoopTiling::runOnFunction() {
         diag << tSize << ' ';
       diag << "]\n";
     }
-    SmallVector<AffineForOp, 6> tiledNest;
+    SmallVector<AffineForOp, 16> tiledNest;
     if (failed(MytilePerfectlyNested(band, tileSizes, &tiledNest)))
       return signalPassFailure();
 
