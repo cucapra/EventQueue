@@ -19,7 +19,7 @@ namespace equeue {
 // class FuncOp;
 void registerEQueuePasses();
 void registerTilingPass();
-
+void registeParallelizePass();
 /// Generate the code for registering passes.
 }
 } // end namespace mlir

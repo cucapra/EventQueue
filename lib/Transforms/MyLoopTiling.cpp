@@ -1,6 +1,4 @@
 
-#include "EQueue/EQueuePasses.h"
-#include "EQueue/EQueueOps.h"
 
 //===- MyLoopTiling.cpp --- Loop tiling pass ------------------------------*-===//
 //
@@ -14,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "EQueue/EQueuePasses.h"
+#include "EQueue/EQueueOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
