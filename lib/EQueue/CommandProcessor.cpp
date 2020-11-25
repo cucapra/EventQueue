@@ -336,9 +336,9 @@ void finishOp(LauncherTable &l, uint64_t time, uint64_t pid)
           auto key = c.op->getResult(0);
           LauncherTable l;
           if( auto dma_op = mlir::dyn_cast<xilinx::equeue::CreateDMAOp>(c.op) ){
-            l.name = dma_op.getName().str();
+            l.name = "";//dma_op.getName().str();
           } else if ( auto proc_op = mlir::dyn_cast<xilinx::equeue::CreateProcOp>(c.op)){
-            l.name = proc_op.getName().str();
+            l.name = "";//proc_op.getName().str();
           }
           launchTables.insert({key, l});
         }

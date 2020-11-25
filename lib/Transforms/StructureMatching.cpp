@@ -40,13 +40,17 @@
 
 #include <map>
 #include <string>
+#include <iostream>
+#include <sstream>
+#include <algorithm>
+#include <iterator>
+
 #include "EQueue/EQueuePasses.h"
 #include "EQueue/EQueueOps.h"
 
 #define DEBUG_TYPE "structure-matching"
 
 using namespace mlir;
-using namespace mlir::scf;
 using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace mlir::edsc::ops;
@@ -98,7 +102,7 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     f.walk([&](mlir::Operation *op) {
       if (!launchOp && isa<LaunchOp>(op))
         launchOp = op;
-      if (!parallelOp && isa<scf::ParallelOp>(op))
+      if (!parallelOp && isa<AffineParallelOp>(op))
         parallelOp = op;
     });
     
@@ -107,22 +111,19 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     auto &block = region.front();
     Value accel = launchOp->getOperand(2);
     accel.getDefiningOp();
-    Value match_comp;
-    for(auto comp_op: accel.getDefiningOp()->getOperands()){
-      if(comp_op.getDefiningOp()->getAttr("name").cast<StringAttr>().getValue()==structName){
-        match_comp = comp_op.getDefiningOp()->getOperand(0);
-        break;
-      }
-    }
+    Value match_comp = dyn_cast<CreateCompOp>(accel.getDefiningOp()).getNamedComp(structName);
+    llvm::outs()<<match_comp<<"\n";
+
     OpBuilder builder(&getContext());
     builder.setInsertionPointToStart(&block);
     ScopedContext scope(builder, accel.getLoc());
 
     Value pe_array(get_comp(accel, structName, match_comp.getType()));
-    
+    llvm::outs()<<pe_array<<"\n";
 
     auto *original_region = &parallelOp->getRegion(0);
     
+    llvm::outs()<<"hello\n";
     Liveness liveness(parallelOp);
     auto &allInValues = liveness.getLiveOut(&parallelOp->getRegion(0).front());
     llvm::SmallVector<Value, 16> invalues;
@@ -132,9 +133,11 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     ValueRange invaluerange(invalues);
     builder.setInsertionPointToStart(&parallelOp->getRegion(0).front());
     
-    ValueRange indexing = dyn_cast<ParallelOp>(parallelOp).getInductionVars();
+    ValueRange indexing = dyn_cast<AffineParallelOp>(parallelOp).getIVs();
 
+    llvm::outs()<<indexing[0]<<"\n";
     Value pe = std_extract_element(pe_array, indexing);
+    llvm::outs()<<pe<<"\n";
     //TODO: analyze and get core      
     Value proc = get_comp(pe,"proc");
     Value signal = start_op();

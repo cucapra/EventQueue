@@ -24,7 +24,7 @@ namespace {
 struct MyParallelize : public PassWrapper<MyParallelize, FunctionPass> {
   MyParallelize()=default;
   MyParallelize(const MyParallelize& pass) {}
-  ListOption<unsigned> indexes {*this, "indexes", llvm::cl::desc("give index in post order to decide whether parallelize them or not"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<unsigned> indices {*this, "indices", llvm::cl::desc("give index in post order to decide whether parallelize them or not"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   
   void runOnFunction() override;
 };
@@ -34,13 +34,13 @@ void MyParallelize::runOnFunction() {
   FuncOp f = getFunction();
   SmallVector<AffineForOp, 8> parallelizableLoops;
   auto counter = 0;
-  llvm::SmallSet<unsigned, 16> parallelIndexes;
-  for(auto index : indexes){
-    parallelIndexes.insert(index);
+  llvm::SmallSet<unsigned, 16> parallelIndices;
+  for(auto index : indices){
+    parallelIndices.insert(index);
   }
-  //if(!indexes.empty()) parallelIndexes = indexes.vec();
+  //if(!indices.empty()) parallelIndices = indices.vec();
   f.walk([&](AffineForOp loop) {
-    if (parallelIndexes.count(counter) && isLoopParallel(loop) )
+    if (parallelIndices.count(counter) && isLoopParallel(loop) )
       parallelizableLoops.push_back(loop);
     counter++;
   });

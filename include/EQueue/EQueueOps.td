@@ -119,11 +119,6 @@ def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTra
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
-  let extraClassDeclaration = [{
-		StringRef getName(){
-			return getAttr("name").cast<StringAttr>().getValue();
-		};
-	}];
 }
 
 def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait]> {
@@ -137,18 +132,13 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
 
     ```mlir
     // Apply the foo operation to %0
-    %dma = "equeue.create_dma"(){name = "DMA"}:()->i32
+    %dma = "equeue.create_dma"(){}:()->i32
     ```
   }];
   let builders = [OpBuilder<
     "Builder builder, OperationState &result">];
   //let arguments = (ins StrAttr:$name);
   let results = (outs I32:$res);
-  let extraClassDeclaration = [{
-		StringRef getName(){
-			return getAttr("name").cast<StringAttr>().getValue();
-		};
-	}];
 }
 
 
@@ -172,7 +162,31 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [NoSideEffect, Structur
     "Builder builder, OperationState &result, ArrayRef<std::string> names, ValueRange comps">];
   //AnyType with a name is fine
   let arguments = (ins StrAttr:$names, Variadic<AnyType>:$comps);
-  let results = (outs I32:$res);
+  let results = (outs I32:$res);  
+  let extraClassDeclaration = [{
+		StringRef getNames(){
+			return getAttr("names").cast<StringAttr>().getValue();
+		};
+		
+    Value getNamedComp(std::string structName){
+      std::string comp_names = getNames().str();
+      std::istringstream iss(comp_names);
+      std::vector<std::string> tokens;
+      copy(std::istream_iterator<std::string>(iss),
+           std::istream_iterator<std::string>(),
+           std::back_inserter(tokens));
+      int i = 0;
+      Value match_comp;
+      for(auto token: tokens){
+        if(token==structName){
+          match_comp = getOperand(i);
+          i++;
+        }
+      }
+      return match_comp;
+    };
+    
+	}];
 }
 
 def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [NoSideEffect, StructureOpTrait]> {
