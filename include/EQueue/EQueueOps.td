@@ -211,6 +211,12 @@ def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [NoSideEffect, StructureOpTra
 
   let arguments = (ins I32: $comp, StrAttr:$names, Variadic<AnyType>:$comps);
   //let results = (outs I32:$res);
+  let extraClassDeclaration = [{
+		StringRef getNames(){
+			return getAttr("names").cast<StringAttr>().getValue();
+		};
+	}];
+		
 }
 
 def EQueue_GetCompOp : EQueue_Op<"get_comp_field", [NoSideEffect, StructureOpTrait]> {

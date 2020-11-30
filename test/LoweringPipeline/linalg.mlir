@@ -12,7 +12,7 @@ module {
   func @graph(%arg0: tensor<7x7xf32>, %arg1: tensor<5x5xf32>) -> tensor<3x3xf32> {
     %0 = "equeue.create_proc"() {type = "AIEngine"} : () -> i32
     %1 = "equeue.create_mem"() {banks = 1 : i64, data = "f32", shape = dense<11> : tensor<1xi64>, type = "RegisterFile"} : () -> i32
-    %2 = "equeue.create_comp_field"(%1, %0) {names = "proc mem "} : (i32, i32) -> i32
+    %2 = "equeue.create_comp_field"(%0, %1) {names = "proc mem "} : (i32, i32) -> i32
     %3 = splat %2 : vector<5xi32>
     %4 = "equeue.create_mem"() {banks = 16 : i64, data = "f32", shape = dense<1024> : tensor<1xi64>, type = "SRAM"} : () -> i32
     %5 = "equeue.create_dma"() : () -> i32
@@ -25,8 +25,11 @@ module {
       %10 = "equeue.get_comp_field"(%arg2) {name = "dma"} : (i32) -> i32
       %11 = "equeue.get_comp_field"(%arg2) {name = "mem"} : (i32) -> i32
       %12 = "equeue.alloc"(%11) {data = "f32", shape = dense<7> : tensor<2xi64>} : (i32) -> memref<7x7xf32>
+      "equeue.add_comp_field"(%arg2, %12) {names = "ibuffer"} : (i32, memref<7x7xf32>) -> ()
       %13 = "equeue.alloc"(%11) {data = "f32", shape = dense<5> : tensor<2xi64>} : (i32) -> memref<5x5xf32>
+      "equeue.add_comp_field"(%arg2, %13) {names = "wbuffer"} : (i32, memref<5x5xf32>) -> ()
       %14 = "equeue.alloc"(%11) {data = "f32", shape = dense<3> : tensor<2xi64>} : (i32) -> memref<3x3xf32>
+      "equeue.add_comp_field"(%arg2, %14) {names = "obuffer"} : (i32, memref<3x3xf32>) -> ()
       "equeue.write"(%arg3, %12) {bank = 0 : i64} : (tensor<7x7xf32>, memref<7x7xf32>) -> ()
       "equeue.write"(%arg4, %13) {bank = 0 : i64} : (tensor<5x5xf32>, memref<5x5xf32>) -> ()
       %15 = linalg.reshape %12 [#map0, #map1] : memref<7x7xf32> into memref<1x7x7x1xf32>

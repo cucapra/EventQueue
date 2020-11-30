@@ -10,6 +10,7 @@
 #include "EQueue/EQueueDialect.h"
 #include "EQueue/EQueueOps.h"
 #include "EQueue/EQueueTraits.h"
+#include "EQueue/EQueuePasses.h"
 #include "EDSC/Intrinsics.h"
 
 #include "mlir/IR/AffineExpr.h"
@@ -45,9 +46,6 @@
 #include <algorithm>
 #include <iterator>
 
-#include "EQueue/EQueuePasses.h"
-#include "EQueue/EQueueOps.h"
-
 #define DEBUG_TYPE "structure-matching"
 
 using namespace mlir;
@@ -67,11 +65,9 @@ struct ParallelOpConversion : public OpRewritePattern<xilinx::equeue::LaunchOp> 
   
   LogicalResult matchAndRewrite(xilinx::equeue::LaunchOp op,
                                 PatternRewriter &rewriter) const override {
-    //auto region = op.region();
-    
+                                
     auto launchOp = op.clone();
 
-    
     rewriter.inlineRegionBefore(*inline_region, launchOp.region(), launchOp.region().end());
     rewriter.replaceOp(op, launchOp.getResults());
     
@@ -112,7 +108,6 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     Value accel = launchOp->getOperand(2);
     accel.getDefiningOp();
     Value match_comp = dyn_cast<CreateCompOp>(accel.getDefiningOp()).getNamedComp(structName);
-    llvm::outs()<<match_comp<<"\n";
 
     OpBuilder builder(&getContext());
     builder.setInsertionPointToStart(&block);
@@ -123,7 +118,6 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
 
     auto *original_region = &parallelOp->getRegion(0);
     
-    llvm::outs()<<"hello\n";
     Liveness liveness(parallelOp);
     auto &allInValues = liveness.getLiveOut(&parallelOp->getRegion(0).front());
     llvm::SmallVector<Value, 16> invalues;
@@ -135,9 +129,7 @@ struct StructureMatchingPass: public PassWrapper<StructureMatchingPass, Function
     
     ValueRange indexing = dyn_cast<AffineParallelOp>(parallelOp).getIVs();
 
-    llvm::outs()<<indexing[0]<<"\n";
     Value pe = std_extract_element(pe_array, indexing);
-    llvm::outs()<<pe<<"\n";
     //TODO: analyze and get core      
     Value proc = get_comp(pe,"proc");
     Value signal = start_op();

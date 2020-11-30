@@ -24,7 +24,7 @@ namespace {
 struct MyParallelize : public PassWrapper<MyParallelize, FunctionPass> {
   MyParallelize()=default;
   MyParallelize(const MyParallelize& pass) {}
-  ListOption<unsigned> indices {*this, "indices", llvm::cl::desc("give index in post order to decide whether parallelize them or not"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  ListOption<unsigned> indices {*this, "indices", llvm::cl::desc("give index in order to decide whether parallelize them or not"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   
   void runOnFunction() override;
 };
@@ -32,23 +32,32 @@ struct MyParallelize : public PassWrapper<MyParallelize, FunctionPass> {
 
 void MyParallelize::runOnFunction() {
   FuncOp f = getFunction();
-  SmallVector<AffineForOp, 8> parallelizableLoops;
-  auto counter = 0;
+  SmallVector<AffineForOp, 20> loops;
+
   llvm::SmallSet<unsigned, 16> parallelIndices;
   for(auto index : indices){
     parallelIndices.insert(index);
   }
   //if(!indices.empty()) parallelIndices = indices.vec();
   f.walk([&](AffineForOp loop) {
-    if (parallelIndices.count(counter) && isLoopParallel(loop) )
+    loops.push_back(loop);
+  });
+  std::reverse(loops.begin(), loops.end());
+  auto counter = 0;
+  SmallVector<AffineForOp, 20> parallelizableLoops;
+  for (AffineForOp loop : loops){
+    if (isLoopParallel(loop) && parallelIndices.count(counter) )
       parallelizableLoops.push_back(loop);
     counter++;
-  });
-  for (AffineForOp loop : parallelizableLoops)
+  }
+  //parallel opertation has to be post order
+  std::reverse(parallelizableLoops.begin(), parallelizableLoops.end());
+  for (AffineForOp loop : parallelizableLoops){
     affineParallelize(loop);
+  }
 }
 
-void equeue::registeParallelizePass() {
+void equeue::registerParallelizePass() {
     PassRegistration<MyParallelize>(
       "loop-parallel",
       "...");

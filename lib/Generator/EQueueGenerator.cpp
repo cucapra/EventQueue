@@ -505,7 +505,7 @@ void MLIRGenImpl::linalgGenerator3(){
   Value proc, mem, comp;
   proc = create_proc("AIEngine");
   mem = create_mem(ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile", 1);
-  comp = create_comp(ArrayRef<std::string>{"proc", "mem"}, ValueRange{mem, proc});
+  comp = create_comp(ArrayRef<std::string>{"proc", "mem"}, ValueRange{proc, mem});
   comp = std_splat( comp, VectorType::get(peShape, comp.getType()) );
   //comp = create_comp("pe_array", comp);
 
@@ -532,8 +532,11 @@ void MLIRGenImpl::linalgGenerator3(){
       dma = get_comp(accel, "dma");
       sram = get_comp(accel, "mem");
       Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{ 7,7 }, "f32", f32Type);
+      add_comp(accel, "ibuffer", ibuffer);
       Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{ 5,5 }, "f32", f32Type);
+      add_comp(accel, "wbuffer", wbuffer);
       Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 3,3 }, "f32", f32Type);
+      add_comp(accel, "obuffer", obuffer);
       write_op(ifmap, ibuffer);
       write_op(filter, wbuffer);
       
