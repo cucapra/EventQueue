@@ -1,4 +1,4 @@
-#include "EQueue/EQueuePasses.h"
+/*#include "EQueue/EQueuePasses.h"
 #include "EQueue/EQueueOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Analysis/AffineAnalysis.h"
@@ -33,7 +33,9 @@
 using namespace mlir;
 using namespace mlir::equeue;
 using namespace mlir::edsc;
-using namespace mlir::edsc::intrinsics;
+using namespace mlir::edsc::intrinsics;*/
+#include "EQueue/Utils.h"
+
 #define DEBUG_TYPE "allocate-mem"
 
 namespace {
@@ -54,34 +56,21 @@ struct AllocateMemory : public PassWrapper<AllocateMemory, FunctionPass>  {
   
   AllocateMemory() = default;
   AllocateMemory(const AllocateMemory& pass) {}
-
-
-
+  
   void allocation(OpBuilder builder, Region *region, unsigned idx, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent);
-
   void deallocation(OpBuilder builder, Region *region, unsigned idx, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent);
+
+
   void runOnFunction() override;
   
+  GenericStructure generic;
+  llvm::DenseMap<mlir::Value, mlir::Value> valueIds;
+  llvm::DenseMap<mlir::Value, mlir::Value> vectorIds;
   llvm::DenseMap< Value, std::map<std::string, Value> > comps_tree;
+
 };
 
 } // end anonymous namespace
-
-static std::vector<std::string> split(const std::string& str, const std::string& delim)
-{
-    std::vector<std::string> tokens;
-    size_t prev = 0, pos = 0;
-    do
-    {
-        pos = str.find(delim, prev);
-        if (pos == std::string::npos) pos = str.length();
-        std::string token = str.substr(prev, pos-prev);
-        if (!token.empty()) tokens.push_back(token);
-        prev = pos + delim.length();
-    }
-    while (pos < str.length() && prev < str.length());
-    return tokens;
-}
 
 void AllocateMemory::allocation(OpBuilder builder, Region *region, unsigned idx, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent){
   ScopedContext scope(builder, region->getLoc());
@@ -93,8 +82,8 @@ void AllocateMemory::allocation(OpBuilder builder, Region *region, unsigned idx,
   if(auto vector_type = original_type.dyn_cast<VectorType>()){//vector
     new_original_parent = new_original_parent.getDefiningOp()->getOperand(0);
     
-    SmallVector<int64_t, 4> lowerBounds(vector_type.getRank(), /*Value=*/0);
-    SmallVector<int64_t, 4> steps(vector_type.getRank(), /*Value=*/1);
+    SmallVector<int64_t, 4> lowerBounds(vector_type.getRank(), 0);
+    SmallVector<int64_t, 4> steps(vector_type.getRank(), 1);
     buildAffineLoopNest(
         builder, new_parent.getDefiningOp()->getLoc(), lowerBounds, vector_type.getShape(), steps,
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange ivs) {
@@ -129,8 +118,8 @@ void AllocateMemory::deallocation(OpBuilder builder, Region *region, unsigned id
   if(auto vector_type = original_type.dyn_cast<VectorType>()){//vector
     original_parent = original_parent.getDefiningOp()->getOperand(0);
     
-    SmallVector<int64_t, 4> lowerBounds(vector_type.getRank(), /*Value=*/0);
-    SmallVector<int64_t, 4> steps(vector_type.getRank(), /*Value=*/1);
+    SmallVector<int64_t, 4> lowerBounds(vector_type.getRank(), 0);
+    SmallVector<int64_t, 4> steps(vector_type.getRank(), 1);
     buildAffineLoopNest(
         builder, parent.getDefiningOp()->getLoc(), lowerBounds, vector_type.getShape(), steps,
         [&](OpBuilder &nestedBuilder, Location loc, ValueRange ivs) {
@@ -152,27 +141,28 @@ void AllocateMemory::deallocation(OpBuilder builder, Region *region, unsigned id
 }
 
 
-template <typename T>
-static void mapCompWithName(std::queue<mlir::Value> &q, std::map<std::string, Value> &comps, Operation *op, unsigned offset=0){
-    std::string comp_string;
-    //if(offset==0){
-    if(auto Op = dyn_cast<T>(op) ){
-      comp_string = Op.getNames().str();
-    }
-    auto comp_names = split(comp_string, " ");
-    for(int i = 0; i < comp_names.size(); i++){
-      auto operand = op->getOperand(i+offset);
-      comps.insert(std::make_pair(comp_names[i], operand));
-      q.push(operand);
-    }
-}
 
 void AllocateMemory::runOnFunction() {
+  auto f = getFunction();
+  MLIRContext *context = &getContext();
+  OpBuilder builder(context);
+  generic.buildIdMap(f);
+  valueIds = generic.valueIds;
+  vectorIds = generic.vectorIds;
+  comps_tree = generic.comps_tree;
+  
+  //pre-order transversal
+  llvm::SmallVector<Region *, 20> regions;
+  walkRegions(*f.getCallableRegion(), [&](Block &block) { }, [&](Region &region) { 
+    regions.push_back(&region);
+  });
+  //the first region is funcop region
+  regions.erase(regions.begin());
+  
+  std::vector<std::vector<std::string>> structs_list;
+  trancate(structs_list, structs_names);
 
-  FuncOp f = getFunction();
-  OpBuilder builder(&getContext());
-  
-  
+
   xilinx::equeue::LaunchOp launchOp;
   for(xilinx::equeue::LaunchOp op : f.getOps<xilinx::equeue::LaunchOp>()){
     launchOp = op;
@@ -180,50 +170,13 @@ void AllocateMemory::runOnFunction() {
   }
   auto accel = launchOp.getRegion().front().getArgument(0);
   auto accel_original = launchOp.getLaunchOperands()[0];
-  
-  std::queue<mlir::Value> q;
-  q.push(accel_original);
-  while(!q.empty()){
-    Value comp = q.front();
-    q.pop();
-    auto type = comp.getType();
-    if(auto vector_type = type.dyn_cast<VectorType>()){
-      comp = comp.getDefiningOp()->getOperand(0);
-    }
-    auto* op = comp.getDefiningOp();
-    std::map<std::string, Value> comps;
-    mapCompWithName<xilinx::equeue::CreateCompOp>(q,comps, op);
-    for(auto add_op: comp.getUsers()){
-      mapCompWithName<xilinx::equeue::AddCompOp>(q, comps, add_op,1);
-    }
-    comps_tree.insert(std::make_pair(comp, comps));
-  }
-
-  
-  
-  llvm::SmallVector<Region *, 20> regions;
-  f.walk([&](Operation *op) {
-    if(op->getNumRegions()!=0){    
-      regions.push_back(&op->getRegion(0));
-    }
-  });
-  //the last region is funcop region
-  regions.erase(regions.end()-1, regions.end());
-  std::reverse(regions.begin(), regions.end());
-
-  std::vector<std::vector<std::string>> trancated_names;
-  for(auto structs_name: structs_names){
-    auto trancated_name = split(structs_name, "@");
-    trancated_names.push_back(trancated_name);
-  }
-
-
+    
   for(auto i = 0; i < indices.size(); i++){
-    auto structs = trancated_names[i];
+    auto structs = structs_list[i];
     auto region = regions[indices[i]];
     builder.setInsertionPointToStart(&region->front());
-    //auto* fields_defining_op = accel_original.getDefiningOp();//defining op of fields
-
+    
+    
     allocation(builder, region, i, structs, 0, accel, accel_original);
     
     structs[structs.size()-1]=mem_names[i];
