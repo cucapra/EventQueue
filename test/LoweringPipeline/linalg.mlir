@@ -9,7 +9,7 @@
 
 
 module {
-  func @graph(%arg0: tensor<7x7xf32>, %arg1: tensor<5x5xf32>) -> tensor<3x3xf32> {
+  func @graph(%arg0: memref<7x7xf32>, %arg1: memref<5x5xf32>, %arg2: memref<3x3xf32>) {
     %0 = "equeue.create_proc"() {type = "AIEngine"} : () -> i32
     %1 = "equeue.create_mem"() {banks = 1 : i64, data = "f32", shape = dense<11> : tensor<1xi64>, type = "RegisterFile"} : () -> i32
     %2 = "equeue.create_comp_field"(%0, %1) {names = "proc mem "} : (i32, i32) -> i32
@@ -19,34 +19,23 @@ module {
     %6 = "equeue.create_proc"() {type = "MicroPlate"} : () -> i32
     %7 = "equeue.create_comp_field"(%3, %6, %4, %5) {names = "pe_array proc mem dma "} : (vector<5xi32>, i32, i32, i32) -> i32
     %8 = "equeue.control_start"() : () -> !equeue.signal
-    %done, %res = "equeue.launch"(%8, %6, %7, %arg0, %arg1) ( {
-    ^bb0(%arg2: i32, %arg3: tensor<7x7xf32>, %arg4: tensor<5x5xf32>):  // no predecessors
-      %9 = "equeue.get_comp_field"(%arg2) {name = "proc"} : (i32) -> i32
-      %10 = "equeue.get_comp_field"(%arg2) {name = "dma"} : (i32) -> i32
-      %11 = "equeue.get_comp_field"(%arg2) {name = "mem"} : (i32) -> i32
-      %12 = "equeue.alloc"(%11) {data = "f32", shape = dense<7> : tensor<2xi64>} : (i32) -> memref<7x7xf32>
-      "equeue.add_comp_field"(%arg2, %12) {names = "ibuffer"} : (i32, memref<7x7xf32>) -> ()
-      %13 = "equeue.alloc"(%11) {data = "f32", shape = dense<5> : tensor<2xi64>} : (i32) -> memref<5x5xf32>
-      "equeue.add_comp_field"(%arg2, %13) {names = "wbuffer"} : (i32, memref<5x5xf32>) -> ()
-      %14 = "equeue.alloc"(%11) {data = "f32", shape = dense<3> : tensor<2xi64>} : (i32) -> memref<3x3xf32>
-      "equeue.add_comp_field"(%arg2, %14) {names = "obuffer"} : (i32, memref<3x3xf32>) -> ()
-      "equeue.write"(%arg3, %12) {bank = 0 : i64} : (tensor<7x7xf32>, memref<7x7xf32>) -> ()
-      "equeue.write"(%arg4, %13) {bank = 0 : i64} : (tensor<5x5xf32>, memref<5x5xf32>) -> ()
-      %15 = linalg.reshape %12 [#map0, #map1] : memref<7x7xf32> into memref<1x7x7x1xf32>
-      %16 = linalg.reshape %13 [#map2, #map3] : memref<5x5xf32> into memref<5x5x1x1xf32>
-      %17 = linalg.reshape %14 [#map0, #map1] : memref<3x3xf32> into memref<1x3x3x1xf32>
-      %18 = subview %15[0, 0, 0, 0] [1, 3, 3, 1] [1, 1, 1, 1]  : memref<1x7x7x1xf32> to memref<1x3x3x1xf32, #map4>
-      linalg.generic {args_in = 2 : i64, args_out = 1 : i64, indexing_maps = [#map5, #map6, #map7], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "parallel", "parallel"]} %18, %16, %17 {
-      ^bb0(%arg5: f32, %arg6: f32, %arg7: f32):  // no predecessors
-        %20 = mulf %arg5, %arg6 : f32
-        %21 = addf %arg7, %20 : f32
-        linalg.yield %21 : f32
+    %done = "equeue.launch"(%8, %6, %7, %arg0, %arg1, %arg2) ( {
+    ^bb0(%arg3: i32, %arg4: memref<7x7xf32>, %arg5: memref<5x5xf32>, %arg6: memref<3x3xf32>):  // no predecessors
+      %9 = "equeue.get_comp_field"(%arg3) {name = "proc"} : (i32) -> i32
+      %10 = "equeue.get_comp_field"(%arg3) {name = "dma"} : (i32) -> i32
+      %11 = "equeue.get_comp_field"(%arg3) {name = "mem"} : (i32) -> i32
+      %12 = linalg.reshape %arg4 [#map0, #map1] : memref<7x7xf32> into memref<1x7x7x1xf32>
+      %13 = linalg.reshape %arg5 [#map2, #map3] : memref<5x5xf32> into memref<5x5x1x1xf32>
+      %14 = linalg.reshape %arg6 [#map0, #map1] : memref<3x3xf32> into memref<1x3x3x1xf32>
+      %15 = subview %12[0, 0, 0, 0] [1, 3, 3, 1] [1, 1, 1, 1]  : memref<1x7x7x1xf32> to memref<1x3x3x1xf32, #map4>
+      linalg.generic {args_in = 2 : i64, args_out = 1 : i64, indexing_maps = [#map5, #map6, #map7], iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "parallel", "parallel"]} %15, %13, %14 {
+      ^bb0(%arg7: f32, %arg8: f32, %arg9: f32):  // no predecessors
+        %16 = mulf %arg7, %arg8 : f32
+        %17 = addf %arg9, %16 : f32
+        linalg.yield %17 : f32
       }: memref<1x3x3x1xf32, #map4>, memref<5x5x1x1xf32>, memref<1x3x3x1xf32>
-      %19 = "equeue.read"(%14) {bank = 0 : i64} : (memref<3x3xf32>) -> tensor<3x3xf32>
-      "equeue.dealloc"(%13, %14, %12) : (memref<5x5xf32>, memref<3x3xf32>, memref<7x7xf32>) -> ()
-      "equeue.return"(%19) : (tensor<3x3xf32>) -> ()
-    }) : (!equeue.signal, i32, i32, tensor<7x7xf32>, tensor<5x5xf32>) -> (!equeue.signal, tensor<3x3xf32>)
-    "equeue.await"(%done) : (!equeue.signal) -> ()
-    return %res : tensor<3x3xf32>
+      "equeue.return"() : () -> ()
+    }) : (!equeue.signal, i32, i32, memref<7x7xf32>, memref<5x5xf32>, memref<3x3xf32>) -> !equeue.signal
+    return
   }
 }

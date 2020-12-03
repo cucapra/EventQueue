@@ -56,40 +56,20 @@ module {
             affine.for %arg10 = 0 to 3 {
               affine.for %arg11 = 0 to 5 step 5 {
                 affine.for %arg12 = 0 to 5 {
-                  %23 = "equeue.get_comp_field"(%arg3) {name = "pe_array"} : (i32) -> vector<5xi32>
-                  %24 = extract_element %23[%arg12] : vector<5xi32>
-                  %25 = "equeue.get_comp_field"(%24) {name = "proc"} : (i32) -> i32
-                  %26 = "equeue.control_start"() : () -> !equeue.signal
-                  %done_0 = "equeue.launch"(%26, %25) ( {
-                    %27 = "equeue.get_comp_field"(%arg3) {name = "wbuffer"} : (i32) -> memref<25xf32>
-                    %28 = "equeue.get_comp_field"(%arg3) {name = "pe_array"} : (i32) -> vector<5xi32>
-                    %29 = extract_element %28[%arg12] : vector<5xi32>
-                    %30 = "equeue.get_comp_field"(%29) {name = "pe_wbuffer"} : (i32) -> memref<1xf32>
-                    %31 = "equeue.get_comp_field"(%arg3) {name = "dma"} : (i32) -> i32
-                    %32 = "equeue.control_start"() : () -> !equeue.signal
-                    %33 = "equeue.memcpy"(%32, %27, %30, %31) {dest_bank = 0 : i64, src_bank = 0 : i64} : (!equeue.signal, memref<25xf32>, memref<1xf32>, i32) -> !equeue.signal
-                    affine.for %arg13 = 0 to 1 {
-                      affine.for %arg14 = #map8(%arg7) to #map9(%arg7) {
-                        affine.for %arg15 = #map8(%arg8) to #map9(%arg8) {
-                          affine.for %arg16 = #map8(%arg9) to #map9(%arg9) {
-                            %34 = "equeue.get_comp_field"(%arg3) {name = "ibuffer"} : (i32) -> memref<49xf32>
-                            %35 = "equeue.get_comp_field"(%arg3) {name = "pe_array"} : (i32) -> vector<5xi32>
-                            %36 = extract_element %35[%arg16] : vector<5xi32>
-                            %37 = "equeue.get_comp_field"(%36) {name = "pe_ibuffer"} : (i32) -> memref<1xf32>
-                            %38 = "equeue.get_comp_field"(%arg3) {name = "dma"} : (i32) -> i32
-                            %39 = "equeue.control_start"() : () -> !equeue.signal
-                            %40 = "equeue.memcpy"(%39, %34, %37, %38) {dest_bank = 0 : i64, src_bank = 0 : i64} : (!equeue.signal, memref<49xf32>, memref<1xf32>, i32) -> !equeue.signal
-                            affine.for %arg17 = #map8(%arg10) to #map9(%arg10) {
-                              affine.for %arg18 = #map8(%arg11) to #map10(%arg11) {
-                                affine.for %arg19 = #map8(%arg12) to #map9(%arg12) {
-                                  affine.for %arg20 = #map8(%arg13) to #map9(%arg13) {
-                                    %41 = affine.load %18[%arg14, %arg16, %arg17, %arg20] : memref<1x3x3x1xf32, #map6>
-                                    %42 = affine.load %16[%arg18, %arg19, %arg20, %arg15] : memref<5x5x1x1xf32>
-                                    %43 = affine.load %17[%arg14, %arg16, %arg17, %arg15] : memref<1x3x3x1xf32>
-                                    %44 = mulf %41, %42 : f32
-                                    %45 = addf %43, %44 : f32
-                                    affine.store %45, %17[%arg14, %arg16, %arg17, %arg15] : memref<1x3x3x1xf32>
-                                  }
+                  affine.for %arg13 = 0 to 1 {
+                    affine.for %arg14 = #map8(%arg7) to #map9(%arg7) {
+                      affine.for %arg15 = #map8(%arg8) to #map9(%arg8) {
+                        affine.for %arg16 = #map8(%arg9) to #map9(%arg9) {
+                          affine.for %arg17 = #map8(%arg10) to #map9(%arg10) {
+                            affine.for %arg18 = #map8(%arg11) to #map10(%arg11) {
+                              affine.for %arg19 = #map8(%arg12) to #map9(%arg12) {
+                                affine.for %arg20 = #map8(%arg13) to #map9(%arg13) {
+                                  %23 = affine.load %18[%arg14, %arg16, %arg17, %arg20] : memref<1x3x3x1xf32, #map6>
+                                  %24 = affine.load %16[%arg18, %arg19, %arg20, %arg15] : memref<5x5x1x1xf32>
+                                  %25 = affine.load %17[%arg14, %arg16, %arg17, %arg15] : memref<1x3x3x1xf32>
+                                  %26 = mulf %23, %24 : f32
+                                  %27 = addf %25, %26 : f32
+                                  affine.store %27, %17[%arg14, %arg16, %arg17, %arg15] : memref<1x3x3x1xf32>
                                 }
                               }
                             }
@@ -97,8 +77,7 @@ module {
                         }
                       }
                     }
-                    "equeue.return"() : () -> ()
-                  }) : (!equeue.signal, i32) -> !equeue.signal
+                  }
                 }
               }
             }

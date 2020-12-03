@@ -19,6 +19,8 @@
 
 using namespace mlir;
 
+///sh run.sh; ./bin/equeue-opt ../test/LoweringPipeline/match_struct.mlir --loop-parallel="indices=7" > ../test/LoweringPipeline/parallel.mlir
+
 namespace {
 /// Convert all parallel affine.for op into 1-D affine.parallel op.
 struct MyParallelize : public PassWrapper<MyParallelize, FunctionPass> {
@@ -46,7 +48,8 @@ void MyParallelize::runOnFunction() {
   auto counter = 0;
   SmallVector<AffineForOp, 20> parallelizableLoops;
   for (AffineForOp loop : loops){
-    if (isLoopParallel(loop) && parallelIndices.count(counter) )
+    if (//isLoopParallel(loop) && 
+      parallelIndices.count(counter) )
       parallelizableLoops.push_back(loop);
     counter++;
   }

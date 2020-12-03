@@ -21,6 +21,7 @@ void registerEQueuePasses();
 void registerTilingPass();
 void registerParallelizePass();
 void registerAllocatePass();
+void registerMemCopyPass();
 /// Generate the code for registering passes.
 }
 } // end namespace mlir

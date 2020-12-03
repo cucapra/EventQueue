@@ -133,7 +133,7 @@ void CreateCompOp::build(Builder builder, OperationState &result, ArrayRef<std::
 }
 
 //===----------------------------------------------------------------------===//
-// CreateCompOp 
+// AddCompOp 
 //===----------------------------------------------------------------------===//
 void AddCompOp::build(Builder builder, OperationState &result, Value comp, ArrayRef<std::string> names, ValueRange comps) {
   std::string name_attr;
@@ -144,8 +144,8 @@ void AddCompOp::build(Builder builder, OperationState &result, Value comp, Array
   result.addOperands(comp);
   result.addOperands(comps);
 	result.addAttribute("names", builder.getStringAttr(name_attr));
-	auto i32Type = IntegerType::get(32, builder.getContext());
-	result.types.push_back(i32Type);
+	//auto i32Type = IntegerType::get(32, builder.getContext());
+	//result.types.push_back(i32Type);
 }
 
 //===----------------------------------------------------------------------===//

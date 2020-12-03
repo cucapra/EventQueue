@@ -39,6 +39,8 @@ using namespace mlir::edsc::intrinsics;
 namespace {
 
 ///./bin/equeue-opt ../test/LoweringPipeline/affine_tile.mlir -allocate-mem="structs-names=pe_array@mem indices=0 mem-names=ibuffer sizes=1"
+///  ./bin/equeue-opt ../test/LoweringPipeline/affine_tile.mlir -allocate-mem="structs-names=mem,pe_array@mem indices=0,0 mem-names=ibuffer,pe_ibuffer sizes=49,1"  > ../test/LoweringPipeline/allocate_ibuffer.mlir
+
 
 struct AllocateMemory : public PassWrapper<AllocateMemory, FunctionPass>  {
 
@@ -196,12 +198,7 @@ void AllocateMemory::runOnFunction() {
     }
     comps_tree.insert(std::make_pair(comp, comps));
   }
-  
 
-  llvm::SmallSet<unsigned, 16> parallelIndices;
-  for(auto index : indices){
-    parallelIndices.insert(index);
-  }
   
   
   llvm::SmallVector<Region *, 20> regions;
@@ -221,9 +218,9 @@ void AllocateMemory::runOnFunction() {
   }
 
 
-  for(auto i: parallelIndices){
+  for(auto i = 0; i < indices.size(); i++){
     auto structs = trancated_names[i];
-    auto region = regions[i];
+    auto region = regions[indices[i]];
     builder.setInsertionPointToStart(&region->front());
     //auto* fields_defining_op = accel_original.getDefiningOp();//defining op of fields
 

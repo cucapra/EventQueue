@@ -55,7 +55,7 @@ module {
           affine.for %arg9 = 0 to 3 {
             affine.for %arg10 = 0 to 3 {
               affine.for %arg11 = 0 to 5 step 5 {
-                affine.for %arg12 = 0 to 5 {
+                affine.parallel (%arg12) = (0) to (5) {
                   %23 = "equeue.get_comp_field"(%arg3) {name = "pe_array"} : (i32) -> vector<5xi32>
                   %24 = extract_element %23[%arg12] : vector<5xi32>
                   %25 = "equeue.get_comp_field"(%24) {name = "proc"} : (i32) -> i32

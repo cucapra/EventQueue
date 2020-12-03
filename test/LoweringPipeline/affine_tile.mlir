@@ -14,7 +14,7 @@
 
 
 module {
-  func @graph(%arg0: tensor<7x7xf32>, %arg1: tensor<5x5xf32>) -> tensor<3x3xf32> {
+  func @graph(%arg0: memref<7x7xf32>, %arg1: memref<5x5xf32>, %arg2: memref<3x3xf32>) {
     %0 = "equeue.create_proc"() {type = "AIEngine"} : () -> i32
     %1 = "equeue.create_mem"() {banks = 1 : i64, data = "f32", shape = dense<11> : tensor<1xi64>, type = "RegisterFile"} : () -> i32
     %2 = "equeue.create_comp_field"(%0, %1) {names = "proc mem "} : (i32, i32) -> i32
@@ -24,38 +24,32 @@ module {
     %6 = "equeue.create_proc"() {type = "MicroPlate"} : () -> i32
     %7 = "equeue.create_comp_field"(%3, %6, %4, %5) {names = "pe_array proc mem dma "} : (vector<5xi32>, i32, i32, i32) -> i32
     %8 = "equeue.control_start"() : () -> !equeue.signal
-    %done, %res = "equeue.launch"(%8, %6, %7, %arg0, %arg1) ( {
-    ^bb0(%arg2: i32, %arg3: tensor<7x7xf32>, %arg4: tensor<5x5xf32>):  // no predecessors
-      %9 = "equeue.get_comp_field"(%arg2) {name = "mem"} : (i32) -> i32
-      %10 = "equeue.alloc"(%9) {data = "f32", shape = dense<7> : tensor<2xi64>} : (i32) -> memref<7x7xf32>
-      %11 = "equeue.alloc"(%9) {data = "f32", shape = dense<5> : tensor<2xi64>} : (i32) -> memref<5x5xf32>
-      %12 = "equeue.alloc"(%9) {data = "f32", shape = dense<3> : tensor<2xi64>} : (i32) -> memref<3x3xf32>
-      "equeue.write"(%arg3, %10) {bank = 0 : i64} : (tensor<7x7xf32>, memref<7x7xf32>) -> ()
-      "equeue.write"(%arg4, %11) {bank = 0 : i64} : (tensor<5x5xf32>, memref<5x5xf32>) -> ()
-      %13 = linalg.reshape %10 [#map0, #map1] : memref<7x7xf32> into memref<1x7x7x1xf32>
-      %14 = linalg.reshape %11 [#map2, #map3] : memref<5x5xf32> into memref<5x5x1x1xf32>
-      %15 = linalg.reshape %12 [#map0, #map1] : memref<3x3xf32> into memref<1x3x3x1xf32>
-      %16 = subview %13[0, 0, 0, 0] [1, 3, 3, 1] [1, 1, 1, 1]  : memref<1x7x7x1xf32> to memref<1x3x3x1xf32, #map4>
-      affine.for %arg5 = 0 to 1 {
-        affine.for %arg6 = 0 to 1 {
-          affine.for %arg7 = 0 to 3 {
-            affine.for %arg8 = 0 to 3 {
-              affine.for %arg9 = 0 to 5 step 5 {
-                affine.for %arg10 = 0 to 5 {
-                  affine.for %arg11 = 0 to 1 {
-                    affine.for %arg12 = #map6(%arg5) to #map7(%arg5) {
-                      affine.for %arg13 = #map6(%arg6) to #map7(%arg6) {
-                        affine.for %arg14 = #map6(%arg7) to #map7(%arg7) {
-                          affine.for %arg15 = #map6(%arg8) to #map7(%arg8) {
-                            affine.for %arg16 = #map6(%arg9) to #map8(%arg9) {
-                              affine.for %arg17 = #map6(%arg10) to #map7(%arg10) {
-                                affine.for %arg18 = #map6(%arg11) to #map7(%arg11) {
-                                  %18 = affine.load %16[%arg12, %arg14, %arg15, %arg18] : memref<1x3x3x1xf32, #map4>
-                                  %19 = affine.load %14[%arg16, %arg17, %arg18, %arg13] : memref<5x5x1x1xf32>
-                                  %20 = affine.load %15[%arg12, %arg14, %arg15, %arg13] : memref<1x3x3x1xf32>
-                                  %21 = mulf %18, %19 : f32
-                                  %22 = addf %20, %21 : f32
-                                  affine.store %22, %15[%arg12, %arg14, %arg15, %arg13] : memref<1x3x3x1xf32>
+    %done = "equeue.launch"(%8, %6, %7, %arg0, %arg1, %arg2) ( {
+    ^bb0(%arg3: i32, %arg4: memref<7x7xf32>, %arg5: memref<5x5xf32>, %arg6: memref<3x3xf32>):  // no predecessors
+      %9 = linalg.reshape %arg4 [#map0, #map1] : memref<7x7xf32> into memref<1x7x7x1xf32>
+      %10 = linalg.reshape %arg5 [#map2, #map3] : memref<5x5xf32> into memref<5x5x1x1xf32>
+      %11 = linalg.reshape %arg6 [#map0, #map1] : memref<3x3xf32> into memref<1x3x3x1xf32>
+      %12 = subview %9[0, 0, 0, 0] [1, 3, 3, 1] [1, 1, 1, 1]  : memref<1x7x7x1xf32> to memref<1x3x3x1xf32, #map4>
+      affine.for %arg7 = 0 to 1 {
+        affine.for %arg8 = 0 to 1 {
+          affine.for %arg9 = 0 to 3 {
+            affine.for %arg10 = 0 to 3 {
+              affine.for %arg11 = 0 to 5 step 5 {
+                affine.for %arg12 = 0 to 5 {
+                  affine.for %arg13 = 0 to 1 {
+                    affine.for %arg14 = #map6(%arg7) to #map7(%arg7) {
+                      affine.for %arg15 = #map6(%arg8) to #map7(%arg8) {
+                        affine.for %arg16 = #map6(%arg9) to #map7(%arg9) {
+                          affine.for %arg17 = #map6(%arg10) to #map7(%arg10) {
+                            affine.for %arg18 = #map6(%arg11) to #map8(%arg11) {
+                              affine.for %arg19 = #map6(%arg12) to #map7(%arg12) {
+                                affine.for %arg20 = #map6(%arg13) to #map7(%arg13) {
+                                  %13 = affine.load %12[%arg14, %arg16, %arg17, %arg20] : memref<1x3x3x1xf32, #map4>
+                                  %14 = affine.load %10[%arg18, %arg19, %arg20, %arg15] : memref<5x5x1x1xf32>
+                                  %15 = affine.load %11[%arg14, %arg16, %arg17, %arg15] : memref<1x3x3x1xf32>
+                                  %16 = mulf %13, %14 : f32
+                                  %17 = addf %15, %16 : f32
+                                  affine.store %17, %11[%arg14, %arg16, %arg17, %arg15] : memref<1x3x3x1xf32>
                                 }
                               }
                             }
@@ -70,10 +64,8 @@ module {
           }
         }
       }
-      %17 = "equeue.read"(%12) {bank = 0 : i64} : (memref<3x3xf32>) -> tensor<3x3xf32>
-      "equeue.dealloc"(%11, %12, %10) : (memref<5x5xf32>, memref<3x3xf32>, memref<7x7xf32>) -> ()
-      "equeue.return"(%17) : (tensor<3x3xf32>) -> ()
-    }) : (!equeue.signal, i32, i32, tensor<7x7xf32>, tensor<5x5xf32>) -> (!equeue.signal, tensor<3x3xf32>)
-    return %res : tensor<3x3xf32>
+      "equeue.return"() : () -> ()
+    }) : (!equeue.signal, i32, i32, memref<7x7xf32>, memref<5x5xf32>, memref<3x3xf32>) -> !equeue.signal
+    return
   }
 }

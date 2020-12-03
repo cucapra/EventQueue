@@ -491,11 +491,11 @@ void MLIRGenImpl::linalgGenerator3(){
 
   //auto indexType = IndexType::get(&context);
   auto f32Type = builder.getF32Type();
-  auto ifmapType = RankedTensorType::get({7,7}, f32Type);
-  auto filterType = RankedTensorType::get({5,5}, f32Type);
-  auto ofmapType = RankedTensorType::get({3,3}, f32Type);
+  auto ifmapType = MemRefType::get({7,7}, f32Type);//RankedTensorType::get({7,7}, f32Type);
+  auto filterType = MemRefType::get({5,5}, f32Type);//RankedTensorType::get({5,5}, f32Type);
+  auto ofmapType = MemRefType::get({3,3}, f32Type);//RankedTensorType::get({3,3}, f32Type);
   auto f =
-      makeFunction("graph", {ofmapType}, {ifmapType, filterType});
+      makeFunction("graph", {}, {ifmapType, filterType, ofmapType});
   theModule.push_back(f);
   
   ScopedContext scope(builder, f.getLoc());
@@ -522,24 +522,26 @@ void MLIRGenImpl::linalgGenerator3(){
   //XXX(Zhijing): not sure why we cannot use aliasing here
   Value signal = start_op();
   //builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
-  auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+  //auto res = 
+  LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1), f.getArgument(2)}, 
     [&](ValueRange ins){
       accel = ins[0];
-      Value ifmap = ins[1];
-      Value filter = ins[2];
-      Value ofmap;
+      Value ibuffer = ins[1];
+      Value wbuffer = ins[2];
+      Value obuffer = ins[3];
       processor = get_comp(accel, "proc");
       dma = get_comp(accel, "dma");
       sram = get_comp(accel, "mem");
+      /*
       Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{ 7,7 }, "f32", f32Type);
-      add_comp(accel, "ibuffer", ibuffer);
+      add_comp(accel, ArrayRef<std::string>{"ibuffer"}, ValueRange{ibuffer});
       Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{ 5,5 }, "f32", f32Type);
-      add_comp(accel, "wbuffer", wbuffer);
+      add_comp(accel, ArrayRef<std::string>{"wbuffer"}, ValueRange{wbuffer});
       Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 3,3 }, "f32", f32Type);
-      add_comp(accel, "obuffer", obuffer);
+      add_comp(accel, ArrayRef<std::string>{"obuffer"}, ValueRange{obuffer});
       write_op(ifmap, ibuffer);
       write_op(filter, wbuffer);
-      
+      */
           auto ifmapType = MemRefType::get({1, 7, 7, 1}, f32Type);
           auto filterType = MemRefType::get({5, 5, 1, 1}, f32Type);
           auto ofmapType = MemRefType::get({1, 3, 3, 1}, f32Type);
@@ -579,12 +581,14 @@ void MLIRGenImpl::linalgGenerator3(){
                   {O({b, h, w, f})},
               mlir::edsc::ops::macRegionBuilder);    
           
-      Value output = read_op(obuffer);
-      dealloc_op(ValueRange{wbuffer, obuffer, ibuffer});
-      return_op(ValueRange{output});
+      //Value output = read_op(obuffer);
+      //dealloc_op(ValueRange{wbuffer, obuffer, ibuffer});
+      //return_op(ValueRange{output});
+      return_op(ValueRange{});
   });
-  await_op(ValueRange{res[0]});
-  builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
+  std_ret();
+  //await_op(ValueRange{res[0]});
+  //builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
   /// ------ end ---------
   
   
