@@ -117,6 +117,20 @@ static ParseResult parseCreateProcOp(OpAsmParser &parser,
   result.types.push_back(i32Type);
 	return success();
 }
+
+//===----------------------------------------------------------------------===//
+// ConnectionOp 
+//===----------------------------------------------------------------------===//
+void ConnectionOp::build(Builder builder, OperationState &result, Value comp0, Value comp1, StringRef type, int64_t bandwidth) {
+  result.addOperands(comp0);
+  result.addOperands(comp1);
+	result.addAttribute("type", builder.getStringAttr(type));
+	result.addAttribute("bandwidth", builder.getI64IntegerAttr(bandwidth));
+	
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
+
 //===----------------------------------------------------------------------===//
 // CreateCompOp 
 //===----------------------------------------------------------------------===//
@@ -281,6 +295,32 @@ void MemReadOp::build(Builder builder, OperationState &result, Value buffer, Val
 	}
 	
 }
+
+//===----------------------------------------------------------------------===//
+// UnkownSpecificationOp 
+//===----------------------------------------------------------------------===//
+void UnkownSpecificationOp::build(Builder builder, OperationState &result, uint64_t input_bit, uint64_t output_bit, uint64_t cycle) {
+	result.addAttribute("input_bit", builder.getI64IntegerAttr(input_bit));
+	result.addAttribute("output_bit", builder.getI64IntegerAttr(output_bit));
+	result.addAttribute("cycle", builder.getI64IntegerAttr(cycle));
+	
+	auto i32Type = IntegerType::get(32, builder.getContext());
+	result.types.push_back(i32Type);
+}
+
+
+//===----------------------------------------------------------------------===//
+// UnkownOp 
+//===----------------------------------------------------------------------===//
+void UnkownOp::build(Builder builder, OperationState &result, Value operation_spec, ValueRange inputs, Type resType) {
+	result.addOperands(operation_spec);
+	result.addOperands(inputs);
+	result.types.push_back(resType);
+}
+
+
+
+
 
 //===----------------------------------------------------------------------===//
 // LaunchOp 

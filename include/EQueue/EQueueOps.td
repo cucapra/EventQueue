@@ -121,6 +121,33 @@ def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTra
   //let skipDefaultBuilders = 1;
 }
 
+
+def EQueue_Streaming : StrEnumAttrCase<"Streaming">;
+def EQueue_Window : StrEnumAttrCase<"Window">;
+
+def EQueue_ConnectionOpAttr : StrEnumAttr<"ConnectionOpAttr",
+    "built-in connection type",
+    [
+			EQueue_Streaming,
+			EQueue_Window
+		]>{
+			let cppNamespace = "xilinx::equeue";
+		}
+
+
+def EQueue_ConnectionOp : EQueue_Op<"connection", [NoSideEffect, StructureOpTrait]> {
+  let summary = "Connect components.";
+  let description = [{
+    Connects components and set bandwidth.
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value comp0, Value comp1, StringRef type, int64_t bandwidth = -1">];
+  let arguments = (ins I32:$comp0, I32:$comp1, EQueue_ConnectionOpAttr:$type, OptionalAttr<I64Attr>:$bandwidth);
+  let results = (outs I32:$res);
+  //let skipDefaultBuilders = 1;
+}
+
+
 def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait]> {
   let summary = "Create DMA component.";
   let description = [{
@@ -386,6 +413,42 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
     };
   }];
 }
+
+//unknown op
+def EQueue_UnkownSpecificationOp : EQueue_Op<"unkSpecOp", [NoSideEffect, StructureOpTrait]> {
+  let summary = "Unknown operation specification.";
+  let description = [{
+    Unkown operation specification on input/output bits, cycle to compute.
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, uint64_t input_bit, uint64_t output_bit, uint64_t cycle">];
+  let arguments = (ins I64Attr: $input_bit, I64Attr: $output_bit, I64Attr:$cycle);
+  let results = (outs I32:$res);
+  //let skipDefaultBuilders = 1;
+}
+
+
+//unknown op
+def EQueue_UnkownOp : EQueue_Op<"unkOp", [NoSideEffect]> {
+  let summary = "Unknown operation.";
+  let description = [{
+    Unkown operation with specification.
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value operation_spec, ValueRange inputs, Type resType">];
+  let arguments = (ins I32: $operation_spec, Variadic<AnyType>:$inputs);
+  let results = (outs AnyType:$res);
+  //let skipDefaultBuilders = 1;
+}
+
+
+
+
+
+
+
+
+
 
 // IsolatedFromAbove,
 def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"ReturnOp">, AsyncOpTrait]> {

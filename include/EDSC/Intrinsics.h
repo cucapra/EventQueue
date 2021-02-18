@@ -18,6 +18,7 @@ using namespace mlir::edsc;
 using create_dma = ValueBuilder<xilinx::equeue::CreateDMAOp>;
 using create_mem = ValueBuilder<xilinx::equeue::CreateMemOp>;
 using create_proc = ValueBuilder<xilinx::equeue::CreateProcOp>;
+using connection = ValueBuilder<xilinx::equeue::ConnectionOp>;
 using create_comp = ValueBuilder<xilinx::equeue::CreateCompOp>;
 using add_comp = OperationBuilder<xilinx::equeue::AddCompOp>;
 using get_comp = ValueBuilder<xilinx::equeue::GetCompOp>;
@@ -27,6 +28,10 @@ using dealloc_op = OperationBuilder<xilinx::equeue::MemDeallocOp>;
 using read_op = ValueBuilder<xilinx::equeue::MemReadOp>;
 using write_op = OperationBuilder<xilinx::equeue::MemWriteOp>;
 using memcpy_op = ValueBuilder<xilinx::equeue::MemCopyOp>;
+
+
+using unk_spec = ValueBuilder<xilinx::equeue::UnkownSpecificationOp>;
+using unk_op = ValueBuilder<xilinx::equeue::UnkownOp>;
 
 using return_op = OperationBuilder<xilinx::equeue::ReturnOp>;
 
