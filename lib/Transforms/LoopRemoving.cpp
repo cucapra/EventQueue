@@ -1,3 +1,5 @@
+
+
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -226,8 +228,10 @@ namespace
                 BlockAndValueMapping map;
                 for (auto &sub_op : op.getRegion().front().without_terminator()){
                     auto cl = builder.clone(sub_op, map);
-                    if (sub_op.getNumResults() >= 1 ){
-                        map.map(sub_op.getResults(), cl->getResults());
+                    for(int i = 0; i < sub_op.getNumResults(); i++){
+                      Value res0 = sub_op.getResult(i);
+                      Value res1 = cl->getResult(i);
+                      map.map(res0, res1);
                     }
                     counter ++;
                 }

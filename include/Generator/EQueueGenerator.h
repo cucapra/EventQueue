@@ -149,6 +149,9 @@ public:
   void linalgGenerator2();
   void linalgGenerator3();
   void scaleSimGenerator();
+  void firSingleKernelGenerator();
+  
+  
 private:
   layerConfig layer_config;
   accelConfig accel_config;
