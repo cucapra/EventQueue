@@ -46,11 +46,11 @@ void CreateDMAOp::build(Builder builder, OperationState &result) {
 // CreateMemOp 
 //===----------------------------------------------------------------------===//
 void CreateMemOp::build(Builder builder, OperationState &result, 
-	ArrayRef<int64_t> shape, StringRef data, StringRef type, int64_t banks) {
+	ArrayRef<int64_t> shape, int64_t data_bit, StringRef type, int64_t banks) {
 	//result.addAttribute("name", builder.getStringAttr(name));
 	//TODO: depend on input type
 	result.addAttribute("shape", builder.getI64TensorAttr(shape));
-	result.addAttribute("data", builder.getStringAttr(data));
+	result.addAttribute("data_bit", builder.getI64IntegerAttr(data_bit));
 	result.addAttribute("type", builder.getStringAttr(type));
 	result.addAttribute("banks", builder.getI64IntegerAttr(banks));
 	auto i32Type = IntegerType::get(32, builder.getContext());
@@ -121,9 +121,7 @@ static ParseResult parseCreateProcOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // ConnectionOp 
 //===----------------------------------------------------------------------===//
-void ConnectionOp::build(Builder builder, OperationState &result, Value comp0, Value comp1, StringRef type, int64_t bandwidth) {
-  result.addOperands(comp0);
-  result.addOperands(comp1);
+void ConnectionOp::build(Builder builder, OperationState &result, StringRef type, int64_t bandwidth) {
 	result.addAttribute("type", builder.getStringAttr(type));
 	result.addAttribute("bandwidth", builder.getI64IntegerAttr(bandwidth));
 	
@@ -182,10 +180,10 @@ void GetCompOp::build(Builder builder, OperationState &result, Value comp, Strin
 // MemAllocOp 
 //===----------------------------------------------------------------------===//
 void MemAllocOp::build(Builder builder, OperationState &result, Value mem, 
-	ArrayRef<int64_t> shape, StringRef data, Type tensorDataType) {
+	ArrayRef<int64_t> shape, int64_t data_bit, Type tensorDataType) {
   result.addOperands(mem);
 	result.addAttribute("shape", builder.getI64TensorAttr(shape));
-	result.addAttribute("data", builder.getStringAttr(data));
+	result.addAttribute("data_bit", builder.getI64IntegerAttr(data_bit));
   auto tensorType =  RankedTensorType::get(
         shape, tensorDataType);
 	auto f32Type = FloatType::getF32(builder.getContext());
@@ -272,27 +270,29 @@ static ParseResult parseMemDeallocOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // MemWriteOp 
 //===----------------------------------------------------------------------===//
-void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, int64_t bank) {
+void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, Value connection, int64_t bank) {
   result.addOperands(value);
   result.addOperands(buffer);
+  if(connection!=Value()){
+    result.addOperands(connection);
+  }
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
 }
 //===----------------------------------------------------------------------===//
 // MemReadOp 
 //===----------------------------------------------------------------------===//
-void MemReadOp::build(Builder builder, OperationState &result, Value buffer, ValueRange index, int64_t bank) {
+void MemReadOp::build(Builder builder, OperationState &result, Value buffer, Value connection, ArrayRef<int64_t> size, int64_t bank) {
   result.addOperands(buffer);
-  result.addOperands(index);
-  
+  if(connection!=Value()){
+    result.addOperands(connection);
+  }
+	result.addAttribute("size", builder.getI64TensorAttr(size));
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
-	
+
   auto memrefType = buffer.getType().cast<MemRefType>();
-  if(index.size() >= 1 || (memrefType.getShape().size() == 1 && memrefType.getShape()[0]==1) ){
-	  result.types.push_back(memrefType.getElementType());//scalar
-	}else{
-	  auto tensorType = RankedTensorType::get(memrefType.getShape(), memrefType.getElementType());
-	  result.types.push_back(tensorType);//tensor
-	}
+  
+	auto tensorType = RankedTensorType::get(size, memrefType.getElementType());
+	result.types.push_back(tensorType);//tensor
 	
 }
 
@@ -312,8 +312,8 @@ void UnkownSpecificationOp::build(Builder builder, OperationState &result, uint6
 //===----------------------------------------------------------------------===//
 // UnkownOp 
 //===----------------------------------------------------------------------===//
-void UnkownOp::build(Builder builder, OperationState &result, Value operation_spec, ValueRange inputs, Type resType) {
-	result.addOperands(operation_spec);
+void UnkownOp::build(Builder builder, OperationState &result, StringRef op_name, ValueRange inputs, Type resType) {
+	result.addAttribute("op_name", builder.getStringAttr(op_name));
 	result.addOperands(inputs);
 	result.types.push_back(resType);
 }
@@ -413,12 +413,15 @@ static ParseResult parseLaunchOp(OpAsmParser &parser,
 // MemCopyOp 
 //===----------------------------------------------------------------------===//
 void MemCopyOp::build(Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, 
-  Value dma, ValueRange offset, int64_t src_bank, int64_t dest_bank) {
+  Value dma, Value connection, ArrayRef<int64_t> size, int64_t src_bank, int64_t dest_bank) {
   result.addOperands(start);
   result.addOperands(src_buffer);
   result.addOperands(dest_buffer);
   result.addOperands(dma);
-  result.addOperands(offset);
+  result.addOperands(connection);
+  //ValueRange offset,  
+  //result.addOperands(offset);
+  result.addAttribute("size", builder.getI64TensorAttr(size));
 	result.addAttribute("src_bank", builder.getI64IntegerAttr(src_bank));
 	result.addAttribute("dest_bank", builder.getI64IntegerAttr(dest_bank));
 	auto signalType = EQueueSignalType::get(builder.getContext());

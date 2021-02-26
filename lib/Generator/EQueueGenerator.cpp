@@ -504,12 +504,12 @@ void MLIRGenImpl::linalgGenerator3(){
   peShape.push_back(5);
   Value proc, mem, comp;
   proc = create_proc("AIEngine");
-  mem = create_mem(ArrayRef<int64_t>{ 11 }, "f32", "RegisterFile", 1);
+  mem = create_mem(ArrayRef<int64_t>{ 11 }, 32, "RegisterFile", 1);
   comp = create_comp(ArrayRef<std::string>{"proc", "mem"}, ValueRange{proc, mem});
   comp = std_splat( comp, VectorType::get(peShape, comp.getType()) );
   //comp = create_comp("pe_array", comp);
 
-  Value sram(create_mem(ArrayRef<int64_t>{ 1024 }, "f32", "SRAM", 16));
+  Value sram(create_mem(ArrayRef<int64_t>{ 1024 }, 32, "SRAM", 16));
   Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc()).getResult();
   Value processor(create_proc("MicroPlate") );
   Value accel = create_comp(ArrayRef<std::string>{"pe_array","proc", "mem", "dma"},

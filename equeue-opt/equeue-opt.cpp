@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
   mlir::equeue::registerParallelizePass();
   mlir::equeue::registerAllocatePass();
   mlir::equeue::registerMemCopyPass();
-  //mlir::equeue::registerLoopRemovingPass();
+  mlir::equeue::registerLoopRemovingPass();
 
   // Register equeue passes here.
   mlir::registerDialect<xilinx::equeue::EQueueDialect>();
@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    generator.linalgGenerator3();
+    generator.firSingleKernel();
   }
   else{
     // Set up the input file.

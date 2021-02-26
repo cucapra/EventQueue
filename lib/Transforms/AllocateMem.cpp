@@ -99,7 +99,7 @@ void AllocateMemory::allocation(OpBuilder builder, Region *region, unsigned idx,
   if(j!=structs.size()-1){
     allocation(builder, region, idx, structs, j+1, new_parent, new_original_parent);
   }else{
-    Value buffer = alloc_op(new_parent, ArrayRef<int64_t>{ sizes[idx] }, "f32", builder.getF32Type());
+    Value buffer = alloc_op(new_parent, ArrayRef<int64_t>{ sizes[idx] }, 32, builder.getF32Type());
     add_comp(parent, mem_names[idx], buffer);
     comps_tree[original_parent].insert(std::make_pair(mem_names[idx], buffer));
   }

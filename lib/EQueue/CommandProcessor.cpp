@@ -154,7 +154,9 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     deviceMap[key] = std::make_unique<xilinx::equeue::DMA>(deviceId++);
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemReadOp>(op)) {
-    int dlines = Op.hasOffset() ? 1 : getMemVolume( Op.getBuffer() );
+    //TODO: size 
+    //int dlines = Op.hasOffset() ? 1 : getMemVolume( Op.getBuffer() );
+    int dlines = 1;
     auto key = getAllocDevice(Op.getBuffer());
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
@@ -175,10 +177,12 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     LLVM_DEBUG(llvm::dbgs()<<"here----"<<"\n");
     int srcLines = 1;
     int destLines = 1;
+    //TODO: size
+    /*
     if(!Op.hasOffset()){
       srcLines = getMemVolume( Op.getSrcBuffer() );
       destLines = getMemVolume( Op.getDestBuffer() );
-    }
+    }*/
     int dlines = std::min(srcLines, destLines);
     
     auto srcKey = getAllocDevice(Op.getSrcBuffer());

@@ -30,13 +30,15 @@ def EQueue_SignalType :
 def EQueue_MemRegister : StrEnumAttrCase<"RegisterFile">;
 def EQueue_MemSRAM : StrEnumAttrCase<"SRAM">;
 def EQueue_MemDRAM : StrEnumAttrCase<"DRAM">;
+def EQueue_MemSINK : StrEnumAttrCase<"SINK">;//for simulation purpose
 
 def EQueue_CreateMemOpAttr : StrEnumAttr<"CreateMemOpAttr",
     "built-in reduction memory type supported by create memory operation",
     [
 			EQueue_MemRegister,
 			EQueue_MemSRAM,
-			EQueue_MemDRAM
+			EQueue_MemDRAM,
+			EQueue_MemSINK
 		]>{
 			let cppNamespace = "xilinx::equeue";
 		
@@ -56,10 +58,10 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, ArrayRef<int64_t> shape, StringRef data, StringRef type, int64_t banks=1"
+    "Builder builder, OperationState &result, ArrayRef<int64_t> shape, int64_t data_bit, StringRef type, int64_t banks=1"
     >
   ];
-  let arguments = (ins I64ElementsAttr:$shape, StrAttr:$data, EQueue_CreateMemOpAttr:$type, OptionalAttr<I64Attr>:$banks);
+  let arguments = (ins I64ElementsAttr:$shape, I64Attr:$data_bit, EQueue_CreateMemOpAttr:$type, OptionalAttr<I64Attr>:$banks);
   let results = (outs I32:$res);
   let parser = [{ return ::parse$cppClass(parser, result); }];
   //let skipDefaultBuilders = 1;
@@ -141,8 +143,8 @@ def EQueue_ConnectionOp : EQueue_Op<"connection", [NoSideEffect, StructureOpTrai
     Connects components and set bandwidth.
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value comp0, Value comp1, StringRef type, int64_t bandwidth = -1">];
-  let arguments = (ins I32:$comp0, I32:$comp1, EQueue_ConnectionOpAttr:$type, OptionalAttr<I64Attr>:$bandwidth);
+    "Builder builder, OperationState &result, StringRef type, int64_t bandwidth = -1">];
+  let arguments = (ins EQueue_ConnectionOpAttr:$type, OptionalAttr<I64Attr>:$bandwidth);
   let results = (outs I32:$res);
   //let skipDefaultBuilders = 1;
 }
@@ -301,9 +303,9 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
   }];
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value mem, ArrayRef<int64_t> shape," 
-    "StringRef data, Type tensorDataType"
+    "int64_t data_bit, Type tensorDataType"
 	>];
-	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, StrAttr:$data);
+	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, I64Attr:$dat_bita);
 	let results = (outs AnyMemRef: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
   let extraClassDeclaration = [{
@@ -344,6 +346,47 @@ def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {
 	let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
+def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
+  let summary = "read data from buffer at certain index.";
+  let description = [{
+    This operation takes in a memory buffer and an offset of variable number.
+    Returns the value read from the buffer given certain offset 
+
+    Example:
+    ```mlir
+    %value = "equeue.read" (%buffer, %j):(memref<5xf32>, index)->f32 
+    ```
+  }];
+  let builders = [OpBuilder<
+    "Builder builder, OperationState &result, Value buffer, Value connection = Value(), ArrayRef<int64_t> size = {}, int64_t bank = 0"
+	>];
+	//Ignore Variadic<Index>:$offset at this moment
+  let arguments = (ins AnyMemRef: $buffer, Optional<I32>: $connection, OptionalAttr<I64ElementsAttr>: $size, OptionalAttr<I64Attr>: $bank);
+  let results = (outs AnyScalarOrTensor: $res);
+  let extraClassDeclaration = [{
+    Value getBuffer(){
+      return getOperand(0);
+    };
+    int64_t getBank(){
+      if(getAttr("bank")){
+        return getAttr("bank").cast<IntegerAttr>().getInt();
+      }else{
+        return 0;
+      }
+    };
+    
+    operand_range getIndex(){
+    //TODO:UPDATE OFFSET
+      return {operand_begin(), operand_end()};
+    };
+    bool hasOffset(){
+    //TODO:properly define offset operations
+      return false;
+    };
+  }];
+}
+
+
 def EQueue_MemWriteOp : EQueue_Op<"write"> {
   let summary = "Assign memeory component with value.";
   let description = [{
@@ -360,9 +403,9 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value value, Value buffer, int64_t bank = 0"
+    "Builder builder, OperationState &result, Value value, Value buffer, Value connection = Value(), int64_t bank = 0"
 	>];
-  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, OptionalAttr<I64Attr>: $bank);
+  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, Optional<I32>: $connection, OptionalAttr<I64Attr>: $bank);
   let extraClassDeclaration = [{
     Value getBuffer(){
       return getOperand(1);
@@ -378,41 +421,6 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
 
 }
 
-def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
-  let summary = "read data from buffer at certain index.";
-  let description = [{
-    This operation takes in a memory buffer and an offset of variable number.
-    Returns the value read from the buffer given certain offset 
-
-    Example:
-    ```mlir
-    %value = "equeue.read" (%buffer, %j):(memref<5xf32>, index)->f32 
-    ```
-  }];
-  let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value buffer, ValueRange index = ValueRange{}, int64_t bank = 0"
-	>];
-  let arguments = (ins AnyMemRef: $buffer, Variadic<Index>:$index, OptionalAttr<I64Attr>: $bank);
-  let results = (outs AnyScalarOrTensor: $res);
-  let extraClassDeclaration = [{
-    Value getBuffer(){
-      return getOperand(0);
-    };
-    operand_range getIndex(){
-      return {operand_begin() + 1, operand_end()};
-    };
-    bool hasOffset(){
-      return !getIndex().empty();
-    };
-    int64_t getBank(){
-      if(getAttr("bank")){
-        return getAttr("bank").cast<IntegerAttr>().getInt();
-      }else{
-        return 0;
-      }
-    };
-  }];
-}
 
 //unknown op
 def EQueue_UnkownSpecificationOp : EQueue_Op<"unkSpecOp", [NoSideEffect, StructureOpTrait]> {
@@ -435,10 +443,15 @@ def EQueue_UnkownOp : EQueue_Op<"unkOp", [NoSideEffect]> {
     Unkown operation with specification.
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value operation_spec, ValueRange inputs, Type resType">];
-  let arguments = (ins I32: $operation_spec, Variadic<AnyType>:$inputs);
+    "Builder builder, OperationState &result, StringRef op_name, ValueRange inputs, Type resType">];
+  let arguments = (ins StrAttr:$op_name, Variadic<AnyType>:$inputs);
   let results = (outs AnyType:$res);
   //let skipDefaultBuilders = 1;
+  let extraClassDeclaration = [{
+		StringRef getOpName(){
+			return getAttr("op_name").cast<StringAttr>().getValue();
+		};
+	}];
 }
 
 
@@ -576,11 +589,11 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     ```
   }];
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, "
-    "ValueRange offset = ValueRange{}, int64_t src_bank = 0, int64_t dest_bank = 0"
+    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, Value connection = Value(),"
+    " ArrayRef<int64_t> size = {}, int64_t src_bank = 0, int64_t dest_bank = 0"
 	>];
-  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, 
-                       Variadic<Index>:$offset, OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank);
+  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, I32: $connection, OptionalAttr<I64ElementsAttr>: $size,
+  OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank);
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
     Value getDMAHandler(){
@@ -590,9 +603,10 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     operand_range getIndex(){
       return {operand_begin() + 4, operand_end()};
     };
+    /*
     bool hasOffset(){
       return !getIndex().empty();
-    };
+    };*/
     Value getSrcBuffer(){
       return getOperand(1);
     };
