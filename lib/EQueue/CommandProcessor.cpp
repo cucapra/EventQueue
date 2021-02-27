@@ -136,7 +136,7 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     for (auto s : shape){
       dlines *= s;
     }
-    auto dtype = Op.getDataType().str();
+    auto dtype = Op.getDataBit();
     auto banks = Op.getBank();
     auto key = valueIds[op->getResults()[0]];
     if (Op.getMemType() == "DRAM")
@@ -145,6 +145,8 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
       deviceMap[key] = std::make_unique<xilinx::equeue::SRAM>(deviceId, banks, dlines, dtype);
     else if (Op.getMemType() == "RegisterFile")
       deviceMap[key] = std::make_unique<xilinx::equeue::RegisterFile>(deviceId, banks, dlines, dtype);
+    else if (Op.getMemType() == "SINK")
+      deviceMap[key] = std::make_unique<xilinx::equeue::SINK>(deviceId, banks, dlines, dtype);
     else
       llvm_unreachable("No such memory type.\n");
     deviceId++;

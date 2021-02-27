@@ -30,7 +30,7 @@ namespace xilinx {
 namespace equeue {
 // dma
 #define BURST_MODE true
-#define STEAL_CYECLE_MODE false
+#define STEAL_CYCLE_MODE false
 // unlimited storage/transmission bandwidth
 #define ENOUGH -1
 // unit conversion
@@ -134,6 +134,25 @@ struct Device {
     
 };
 
+struct Connection : public Device{
+    int bandwidth;
+    int start_ptr;
+    int end_ptr;
+    //double transfer_rate_growth;//growth rate of rate
+    //int saturated_volume;
+    Connection(uint64_t id, int bandwid) : Device(id, 1) {
+        bandwidth = bandwid;
+    }
+    //TODO: how to know ...
+    // is that something I have to know anyway?
+    void writeTo(int write_bits, int cycle){
+        return;
+    }
+    int readFrom(int read_bits, int cycle){
+        int cycles = 1;
+        return cycles;
+    }
+};
 
 struct DMA : public Device{
     bool mode;
@@ -165,33 +184,14 @@ struct Memory : public Device {
     int cycles_per_data;//cycles to handle a set of read or write
     int min_cycles;
     int cycles;
-    //int cache_size;
-    //latency
 
-    Memory(uint64_t id, int bks, int rp, int wp, int de_vol, int dlines, std::string dtype, 
+    Memory(uint64_t id, int bks, int rp, int wp, int de_vol, int dlines, int dtype_bit, 
         int cyc_per_data, int min_cyc) : Device(id, bks) {
         banks = bks;
         read_ports = rp;
         write_ports = wp;
         default_volume = de_vol;
-        switch (hash(dtype.c_str())){
-        case hash("f32"):
-            data_size = 32;
-            break;
-        case hash("f16"):
-            data_size = 32;
-            break;
-        case hash("f8"):
-            data_size = 8;
-            break;
-        case hash("f4"):
-            data_size = 4;
-            break;
-        default:
-            data_size = 1;
-            break;
-        }
-        data_lines = dlines;
+        data_lines = dtype_bit;
         int address_size = dlines ? ceil(log2(dlines)) : 1;
         //valid + address bits + data bits
         default_volume = de_vol; 
@@ -207,21 +207,25 @@ struct Memory : public Device {
             return 0;
             //return (read_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
         if(op == MemOp::Write)
-            return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
+            return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)write_ports)*cycles;
         return -1;
     }
 };
 struct RegisterFile : public Memory {
-   RegisterFile(uint64_t id, int bks, int dlines, std::string dtype) : Memory(id, bks, ENOUGH, ENOUGH, 64 Byte, dlines, dtype, 
-        1, 1) {}
+   RegisterFile(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 64 Byte, dlines, dtype_bit, 
+        0, 0) {}
 };
 struct SRAM : public Memory {
-   SRAM(uint64_t id, int bks, int dlines, std::string dtype) : Memory(id, bks, ENOUGH, ENOUGH, 10 KB, dlines, dtype, 
+   SRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 10 KB, dlines, dtype_bit, 
         10, 2) {}
 };
 struct DRAM : public Memory {
-   DRAM(uint64_t id, int bks, int dlines, std::string dtype) : Memory(id, bks, ENOUGH, ENOUGH, 512 MB, dlines, dtype, 
+   DRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 512 MB, dlines, dtype_bit, 
         100, 5) {}
+};
+struct SINK : public Memory {
+   SINK(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, 
+        0, 0) {}
 };
 
 } // namespace equeue

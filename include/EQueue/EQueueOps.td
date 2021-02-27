@@ -71,8 +71,8 @@ def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait
       SmallVector<int, 8> shape(attr.getValues<int64_t>());
       return shape;
     };
-    StringRef getDataType(){
-      return getAttr("data").cast<StringAttr>().getValue();
+    int64_t getDataBit(){
+      return getAttr("data_bit").cast<IntegerAttr>().getInt();
     };
     StringRef getMemType(){
       return getAttr("type").cast<StringAttr>().getValue();
@@ -314,8 +314,8 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
       SmallVector<int, 8> shape(attr.getValues<int64_t>());
       return shape;
 		};
-		StringRef getDataType(){
-			return getAttr("data").cast<StringAttr>().getValue();
+		int64_t getDataBit(){
+			return getAttr("data_bit").cast<IntegerAttr>().getInt();
 		};
     Value getMemHandler(){
       return getOperand();
