@@ -305,7 +305,7 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
     "Builder builder, OperationState &result, Value mem, ArrayRef<int64_t> shape," 
     "int64_t data_bit, Type tensorDataType"
 	>];
-	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, I64Attr:$dat_bita);
+	let arguments = (ins I32:$mem, I64ElementsAttr :$shape, I64Attr:$data_bit);
 	let results = (outs AnyMemRef: $buffer);
 	let parser = [{ return ::parse$cppClass(parser, result); }];
   let extraClassDeclaration = [{

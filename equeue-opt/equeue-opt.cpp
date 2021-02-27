@@ -181,17 +181,9 @@ int main(int argc, char **argv) {
                            allowUnregisteredDialects))) {
       return 1;
     }
-	  /*
+	  
     auto module = loadFileAndProcessModule(context);
     
-	PassManager pm(module->getContext());
-    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
-    optPM.addPass(mlir::createStructureMatchingPass());
-    module->dump();
-    llvm::outs() << "=====================\n";
-    pm.run(*module);
-    module->dump();*/
-	  /*
     
 	  std::string json_fn;
 	  if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
@@ -199,7 +191,7 @@ int main(int argc, char **argv) {
 	  std::stringstream traceStream;
 	  acdc::CommandProcessor proc(traceStream);
 	  proc.run(module.get());
-    json_fp << traceStream.str();*/
+    json_fp << traceStream.str();
   }
   
 

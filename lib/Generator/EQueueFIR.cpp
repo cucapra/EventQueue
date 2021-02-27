@@ -22,7 +22,7 @@ void MLIRGenImpl::firSingleKernel(){
   Value sin = create_mem(ArrayRef<int64_t>{32}, 32, "SINK");
   sin = alloc_op(sin, ArrayRef<int64_t>{N}, 32, i32Type);  
   Value sout = create_mem(ArrayRef<int64_t>{32}, 32, "SINK");
-  sout = alloc_op(sin, ArrayRef<int64_t>{N-32+1}, 32, i32Type); 
+  sout = alloc_op(sout, ArrayRef<int64_t>{N-32+1}, 32, i32Type); 
   
   Value proc = create_proc("AIEngine");
   Value data = create_mem(ArrayRef<int64_t>{32}, 32, "RegisterFile");//delay line
@@ -72,6 +72,7 @@ void MLIRGenImpl::firSingleKernel(){
     return_op(ValueRange{});
   });
   await_op(ValueRange{res[0]});
+  std_ret();
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }
@@ -90,7 +91,7 @@ void MLIRGenImpl::firMultiKernel(){
   Value sin = create_mem(ArrayRef<int64_t>{32}, 32, "SINK");
   sin = alloc_op(sin, ArrayRef<int64_t>{N}, 32, i32Type);  
   Value sout = create_mem(ArrayRef<int64_t>{32}, 32, "SINK");
-  sout = alloc_op(sin, ArrayRef<int64_t>{N-32+1}, 32, i32Type);  
+  sout = alloc_op(sout, ArrayRef<int64_t>{N-32+1}, 32, i32Type);  
   
   Value streaming = create_comp(ArrayRef<std::string>{"stream0"}, ValueRange{connection("Streaming", 1024)});
   for (int i = 1; i < 8; i++){
@@ -204,6 +205,7 @@ void MLIRGenImpl::firMultiKernel(){
     }
   }
   await_op(ValueRange{done_signal[0], done_signal[1], done_signal[2], done_signal[3]});
+  std_ret();
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }
