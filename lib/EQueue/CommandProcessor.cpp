@@ -155,48 +155,62 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     auto key = valueIds[op->getResults()[0]];
     deviceMap[key] = std::make_unique<xilinx::equeue::DMA>(deviceId++);
   }
+  else if (auto Op = mlir::dyn_cast<xilinx::equeue::ConnectionOp>(op)) {
+    auto key = valueIds[op->getResults()[0]];
+    deviceMap[key] = std::make_unique<xilinx::equeue::Connection>(deviceId++, Op.getBandwidth());
+  }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemReadOp>(op)) {
     //TODO: size 
-    //int dlines = Op.hasOffset() ? 1 : getMemVolume( Op.getBuffer() );
-    int dlines = 1;
+    int dlines = Op.getDlines();
+    int vol = Op.getVol();
     auto key = getAllocDevice(Op.getBuffer());
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
-    execution_time = mem->getReadOrWriteCycles(dlines,  xilinx::equeue::MemOp::Read);
+    execution_time = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Read);
     int idx = Op.getBank();
-    return mem->scheduleEvent(idx, time, execution_time, true);
+
+    if(Op.getConnection()!=Value()){
+      key = getAllocDevice(Op.getConnection());
+      auto connection = static_cast<xilinx::equeue::Connection *>(deviceMap[key].get());
+      execution_time = std::max({execution_time, connection->getReadOrWriteCycles(Op.getVol())});
+      return connection->scheduleEvent(0, time, execution_time, {idx}, {mem});
+    }else{
+      return mem->scheduleEvent(idx, time, execution_time, true);
+    }
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemWriteOp>(op)) {
-    int dlines = getMemVolume( Op.getBuffer() );
+    int vol = Op.getVol();
+    int dlines = Op.getDlines();
     auto key = getAllocDevice(Op.getBuffer());
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
-    execution_time = mem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Write);
+    execution_time = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Write);
     int idx = Op.getBank();
-    return mem->scheduleEvent(idx, time, execution_time, true);
+    
+    if(Op.getConnection()!=Value()){
+      key = getAllocDevice(Op.getConnection());
+      auto connection = static_cast<xilinx::equeue::Connection *>(deviceMap[key].get());
+      execution_time = std::max({execution_time, connection->getReadOrWriteCycles(Op.getVol())});
+      return connection->scheduleEvent(0, time, execution_time, {idx}, {mem});
+    }else{
+      return mem->scheduleEvent(idx, time, execution_time, true);
+    }
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemCopyOp>(op)) {
     LLVM_DEBUG(llvm::dbgs()<<"here----"<<"\n");
-    int srcLines = 1;
-    int destLines = 1;
-    //TODO: size
-    /*
-    if(!Op.hasOffset()){
-      srcLines = getMemVolume( Op.getSrcBuffer() );
-      destLines = getMemVolume( Op.getDestBuffer() );
-    }*/
-    int dlines = std::min(srcLines, destLines);
+    int vol = Op.getVol();
+    int dlines = Op.getDlines();
     
     auto srcKey = getAllocDevice(Op.getSrcBuffer());
     auto destKey = getAllocDevice(Op.getDestBuffer());
     
     auto srcMem = static_cast<xilinx::equeue::Memory *>(deviceMap[srcKey].get());
     mem_tids.push_back(srcMem->uid);
-    uint64_t readTime = srcMem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Read);
+    uint64_t readTime = srcMem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Read);
     
     auto destMem = static_cast<xilinx::equeue::Memory *>(deviceMap[destKey].get());
     mem_tids.push_back(destMem->uid);
-    uint64_t writeTime = destMem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Write);
+    uint64_t writeTime = destMem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Write);
 
     //int total_size = srcMem->total_size;
     //int volume = dlines * total_size;
@@ -220,8 +234,9 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
       auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
       mem_tids.push_back(mem->uid);
       auto dlines = getMemVolume(Op.getInput(i));
+		  auto vol = Op.getInput(i).getDefiningOp<xilinx::equeue::MemAllocOp>().getDataBit()*dlines;
       total_loop*=dlines;
-      uint64_t readTime = mem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Read);
+      uint64_t readTime = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Read);
       //assuming memory bank is always 0
       mem->scheduleEvent(0, cur_time, readTime, true);
       cur_time += readTime;
@@ -230,9 +245,10 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
       auto key = getAllocDevice(Op.getOutputBuffer(i));
       auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
       mem_tids.push_back(mem->uid);
-      auto dlines = getMemVolume(Op.getOutputBuffer(i));
+      auto dlines = getMemVolume(Op.getInput(i));
+		  auto vol = Op.getInput(i).getDefiningOp<xilinx::equeue::MemAllocOp>().getDataBit()*dlines;
       total_loop*=dlines;
-      uint64_t writeTime = mem->getReadOrWriteCycles(dlines, xilinx::equeue::MemOp::Write);
+      uint64_t writeTime = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Write);
       //assuming memory bank is always 0
       mem->scheduleEvent(0, cur_time, writeTime, true);
       cur_time += writeTime;

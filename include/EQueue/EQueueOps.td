@@ -147,6 +147,11 @@ def EQueue_ConnectionOp : EQueue_Op<"connection", [NoSideEffect, StructureOpTrai
   let arguments = (ins EQueue_ConnectionOpAttr:$type, OptionalAttr<I64Attr>:$bandwidth);
   let results = (outs I32:$res);
   //let skipDefaultBuilders = 1;
+  let extraClassDeclaration = [{
+	  int64_t getBandwidth(){
+			return getAttr("bandwidth").cast<IntegerAttr>().getInt();
+		};
+	}];
 }
 
 
@@ -367,6 +372,27 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
     Value getBuffer(){
       return getOperand(0);
     };
+    Value getConnection(){
+      return getOperand(1);
+    };
+    int getDlines(){
+		  auto size = getAttr("size").cast<DenseIntElementsAttr>();
+      if(!size){
+        return -1;
+      }else{
+        SmallVector<int, 8> shape(size.getValues<int64_t>());
+        int64_t vol = 1;
+        for(auto s: shape){
+          vol *= s;
+        }
+        return vol;
+      }
+    };
+    int getVol(){
+		  auto allocOp = getBuffer().getDefiningOp<MemAllocOp>();
+		  int64_t vol = allocOp.getDataBit();
+      return getDlines()*vol;
+    }
     int64_t getBank(){
       if(getAttr("bank")){
         return getAttr("bank").cast<IntegerAttr>().getInt();
@@ -410,6 +436,26 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
     Value getBuffer(){
       return getOperand(1);
     };
+    Value getConnection(){
+      return getOperand(2);
+    };
+    int getDlines(){
+		  auto size = getAttr("size").cast<DenseIntElementsAttr>();
+      if(!size){
+        return -1;
+      }else{
+        SmallVector<int, 8> shape(size.getValues<int64_t>());
+        int64_t vol = 1;
+        for(auto s: shape){
+          vol *= s;
+        }
+        return vol;
+      }
+    };
+    int getVol(){
+		  auto allocOp = getBuffer().getDefiningOp<MemAllocOp>();
+		  return getDlines()*allocOp.getDataBit();
+    }
     int64_t getBank(){
       if(getAttr("bank")){
         return getAttr("bank").cast<IntegerAttr>().getInt();
@@ -612,6 +658,35 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     };
     Value getDestBuffer(){
       return getOperand(2);
+    };
+    int getDlines(){
+		  auto size = getAttr("size");
+		  auto allocOp = getSrcBuffer().getDefiningOp<MemAllocOp>();
+		  int64_t srcDlines = 1;
+      if(!size){
+        SmallVector<int, 8> shape = allocOp.getShape();
+        int64_t destDlines = srcDlines;
+        for(auto s: shape){
+          srcDlines *= s;
+        }
+		    allocOp = getDestBuffer().getDefiningOp<MemAllocOp>();
+        SmallVector<int, 8> destShape = allocOp.getShape();
+        for(auto s: destShape){
+          destDlines *= s;
+        }
+        return std::min({destDlines, srcDlines}); 
+      }else{
+        SmallVector<int, 8> shape(size.cast<DenseIntElementsAttr>().getValues<int64_t>());
+        for(auto s: shape){
+          srcDlines *= s;
+        }
+      }
+      return srcDlines;
+    };
+    int getVol(){
+		  auto allocOp = getSrcBuffer().getDefiningOp<MemAllocOp>();
+		  int64_t srcVol = allocOp.getDataBit()*getDlines();
+      return srcVol;
     };
     int64_t getSrcBank(){
       if(getAttr("src_bank")){

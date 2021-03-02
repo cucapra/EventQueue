@@ -136,21 +136,11 @@ struct Device {
 
 struct Connection : public Device{
     int bandwidth;
-    int start_ptr;
-    int end_ptr;
-    //double transfer_rate_growth;//growth rate of rate
-    //int saturated_volume;
     Connection(uint64_t id, int bandwid) : Device(id, 1) {
         bandwidth = bandwid;
     }
-    //TODO: how to know ...
-    // is that something I have to know anyway?
-    void writeTo(int write_bits, int cycle){
-        return;
-    }
-    int readFrom(int read_bits, int cycle){
-        int cycles = 1;
-        return cycles;
+    uint64_t getReadOrWriteCycles(int bits){
+        return ceil( (float)bits/bandwidth);
     }
 };
 
@@ -183,7 +173,6 @@ struct Memory : public Device {
     int default_volume;
     int cycles_per_data;//cycles to handle a set of read or write
     int min_cycles;
-    int cycles;
 
     Memory(uint64_t id, int bks, int rp, int wp, int de_vol, int dlines, int dtype_bit, 
         int cyc_per_data, int min_cyc) : Device(id, bks) {
@@ -199,16 +188,16 @@ struct Memory : public Device {
         total_volume = total_size * dlines;
         cycles_per_data = cyc_per_data;
         min_cycles= min_cyc;
-        cycles = std::max( (int)round( cyc_per_data * (float)total_volume/(float)de_vol ) , min_cyc);
+        
     }
 
-    int getReadOrWriteCycles(int dlines, MemOp op){
+    uint64_t getReadOrWriteCycles(int vol, int dlines, MemOp op){
+        int cycles = std::max( (int)round( cycles_per_data * (float)total_volume/(float)vol ) , min_cycles);
         if(op == MemOp::Read)
             return 0;
             //return (read_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
-        if(op == MemOp::Write)
+        else
             return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)write_ports)*cycles;
-        return -1;
     }
 };
 struct RegisterFile : public Memory {
