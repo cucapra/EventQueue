@@ -60,6 +60,7 @@ struct Device {
     }
     virtual ~Device() = default;
     void deleteOutdatedEvents(int idx, uint64_t now_time){
+        if(events.empty()) return;
         auto it = events[idx].begin();
         for(; it != events[idx].end(); it++){
             if(it->second >= now_time){
@@ -101,27 +102,30 @@ struct Device {
         return start_time+exec_time;
     }
     //schedule the task on multiple devices
-    template <class T>
-    uint64_t  scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, std::vector<int> idx_list, std::initializer_list<T> dlist )
+    //template <class T>
+    uint64_t  scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, std::vector<int> idx_list, std::initializer_list<Device *> dlist )
     {
         
         std::vector<uint64_t> start;
         start.push_back(start_time);
         start.push_back( (events[idx].end()-1)->second );
         int i = 0;
-       
+        llvm::outs()<<"hello\n";
         //schedule right after the latest end time of all events
         for( auto device : dlist )
-        {   
-            device->deleteOutdatedEvents(idx_list[i], start_time);
+        {   llvm::outs()<<start_time<<" "<<idx_list[i]<<"===\n";
+            //device->deleteOutdatedEvents(idx_list[i], start_time);
+            llvm::outs()<<device->events.size()<<"===\n";
             auto e = device->events[idx_list[i++]];
             if(!e.empty()){
                 start.push_back( (e.end()-1)->second );
             }
         }
+        llvm::outs()<<"hello\n";
         
         uint64_t start_t = *std::max_element(start.begin(), start.end());
         
+        llvm::outs()<<start_t<<"\n";
         events[idx].push_back(std::make_pair(start_t, exec_time+start_t));
         i = 0;
         for( auto device : dlist )
@@ -136,6 +140,7 @@ struct Device {
 
 struct Connection : public Device{
     int bandwidth;
+    int data_total;//what to do when data_total is negative
     Connection(uint64_t id, int bandwid) : Device(id, 1) {
         bandwidth = bandwid;
     }
@@ -213,7 +218,7 @@ struct DRAM : public Memory {
         100, 5) {}
 };
 struct SINK : public Memory {
-   SINK(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, 
+   SINK(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, 
         0, 0) {}
 };
 

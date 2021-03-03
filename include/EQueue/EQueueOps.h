@@ -23,6 +23,7 @@
 #include "llvm/Support/Debug.h"
 
 #include "EQueue/EQueueTraits.h"
+#include <assert.h>
 using namespace mlir;
 namespace xilinx {
 namespace equeue {

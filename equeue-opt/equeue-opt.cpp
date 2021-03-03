@@ -166,7 +166,7 @@ int main(int argc, char **argv) {
       }
     }
     
-    generator.firSingleKernel();
+    generator.firMultiKernel();
   }
   else{
     // Set up the input file.

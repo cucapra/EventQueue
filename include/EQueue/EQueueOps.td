@@ -201,7 +201,16 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [NoSideEffect, Structur
 		StringRef getNames(){
 			return getAttr("names").cast<StringAttr>().getValue();
 		};
-		
+		std::vector<std::string> getCompStrList(){
+      std::string comp_names = getNames().str();
+      std::istringstream iss(comp_names);
+      std::vector<std::string> tokens;
+      copy(std::istream_iterator<std::string>(iss),
+           std::istream_iterator<std::string>(),
+           std::back_inserter(tokens));
+      return tokens;
+		};
+		/*
     Value getNamedComp(std::string structName){
       std::string comp_names = getNames().str();
       std::istringstream iss(comp_names);
@@ -218,7 +227,7 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [NoSideEffect, Structur
         }
       }
       return match_comp;
-    };
+    };*/
     
 	}];
 }
@@ -248,6 +257,18 @@ def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [NoSideEffect, StructureOpTra
   let extraClassDeclaration = [{
 		StringRef getNames(){
 			return getAttr("names").cast<StringAttr>().getValue();
+		};
+    Value getCompHandler(){
+      return getOperand(0);
+    };
+		std::vector<std::string> getCompStrList(){
+      std::string comp_names = getNames().str();
+      std::istringstream iss(comp_names);
+      std::vector<std::string> tokens;
+      copy(std::istream_iterator<std::string>(iss),
+           std::istream_iterator<std::string>(),
+           std::back_inserter(tokens));
+      return tokens;
 		};
 	}];
 		
@@ -373,14 +394,21 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
       return getOperand(0);
     };
     Value getConnection(){
-      return getOperand(1);
+      if(getNumOperands()>=3){
+        return getOperand(2);
+      }
+      return Value();
     };
-    int getDlines(){
-		  auto size = getAttr("size").cast<DenseIntElementsAttr>();
+    int getDlines(MemAllocOp allocOp){
+		  auto size = getAttr("size");
       if(!size){
-        return -1;
+        int64_t vol = 1;
+		    for(auto s: allocOp.getShape()){
+		      vol *= s;
+		    }
+		    return vol;
       }else{
-        SmallVector<int, 8> shape(size.getValues<int64_t>());
+        SmallVector<int, 8> shape(size.cast<DenseIntElementsAttr>().getValues<int64_t>());
         int64_t vol = 1;
         for(auto s: shape){
           vol *= s;
@@ -388,10 +416,8 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
         return vol;
       }
     };
-    int getVol(){
-		  auto allocOp = getBuffer().getDefiningOp<MemAllocOp>();
-		  int64_t vol = allocOp.getDataBit();
-      return getDlines()*vol;
+    int getVol(MemAllocOp allocOp){
+      return getDlines(allocOp)*allocOp.getDataBit();
     }
     int64_t getBank(){
       if(getAttr("bank")){
@@ -437,14 +463,21 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
       return getOperand(1);
     };
     Value getConnection(){
-      return getOperand(2);
+      if(getNumOperands()>=3){
+        return getOperand(2);
+      }
+      return Value();
     };
-    int getDlines(){
-		  auto size = getAttr("size").cast<DenseIntElementsAttr>();
+    int getDlines(MemAllocOp allocOp){
+		  auto size = getAttr("size");
       if(!size){
-        return -1;
+        int64_t vol = 1;
+		    for(auto s: allocOp.getShape()){
+		      vol *= s;
+		    }
+		    return vol;
       }else{
-        SmallVector<int, 8> shape(size.getValues<int64_t>());
+        SmallVector<int, 8> shape(size.cast<DenseIntElementsAttr>().getValues<int64_t>());
         int64_t vol = 1;
         for(auto s: shape){
           vol *= s;
@@ -452,9 +485,8 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
         return vol;
       }
     };
-    int getVol(){
-		  auto allocOp = getBuffer().getDefiningOp<MemAllocOp>();
-		  return getDlines()*allocOp.getDataBit();
+    int getVol(MemAllocOp allocOp){
+      return getDlines(allocOp)*allocOp.getDataBit();
     }
     int64_t getBank(){
       if(getAttr("bank")){
@@ -645,11 +677,11 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     Value getDMAHandler(){
       return getOperand(3);
     };
-    //temporary
-    operand_range getIndex(){
-      return {operand_begin() + 4, operand_end()};
-    };
+    //no offset at this moment
     /*
+    operand_range getIndex(){
+      return {operand_begin() + 5, operand_end()};
+    };
     bool hasOffset(){
       return !getIndex().empty();
     };*/
@@ -659,18 +691,19 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     Value getDestBuffer(){
       return getOperand(2);
     };
-    int getDlines(){
+    Value getConnection(){
+      return getOperand(4);
+    };
+    int getDlines(MemAllocOp srcAllocOp, MemAllocOp destAllocOp){
 		  auto size = getAttr("size");
-		  auto allocOp = getSrcBuffer().getDefiningOp<MemAllocOp>();
 		  int64_t srcDlines = 1;
       if(!size){
-        SmallVector<int, 8> shape = allocOp.getShape();
-        int64_t destDlines = srcDlines;
+        SmallVector<int, 8> shape = srcAllocOp.getShape();
         for(auto s: shape){
           srcDlines *= s;
         }
-		    allocOp = getDestBuffer().getDefiningOp<MemAllocOp>();
-        SmallVector<int, 8> destShape = allocOp.getShape();
+        int64_t destDlines = 1;
+        SmallVector<int, 8> destShape = destAllocOp.getShape();
         for(auto s: destShape){
           destDlines *= s;
         }
@@ -683,10 +716,9 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
       }
       return srcDlines;
     };
-    int getVol(){
-		  auto allocOp = getSrcBuffer().getDefiningOp<MemAllocOp>();
-		  int64_t srcVol = allocOp.getDataBit()*getDlines();
-      return srcVol;
+    int getVol(MemAllocOp srcAllocOp, MemAllocOp destAllocOp){
+      assert(srcAllocOp.getDataBit() == destAllocOp.getDataBit());
+		  return srcAllocOp.getDataBit()*getDlines(srcAllocOp, destAllocOp);
     };
     int64_t getSrcBank(){
       if(getAttr("src_bank")){

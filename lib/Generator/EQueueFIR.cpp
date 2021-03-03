@@ -130,7 +130,8 @@ void MLIRGenImpl::firMultiKernel(){
     if(i==3){
       cout = sout;
     }else{
-      cout = get_comp(aie[i], "ofmap");
+      auto memrefType = MemRefType::get({4}, i32Type);
+      cout = get_comp(aie[i], "ofmap", memrefType);
     }
     if (i==0){
       ValueRange res = LaunchOpBuilder(signal, proc, ValueRange{streaming, aie[i], cin, cout}, [&](ValueRange ins){

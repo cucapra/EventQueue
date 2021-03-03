@@ -160,49 +160,63 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     deviceMap[key] = std::make_unique<xilinx::equeue::Connection>(deviceId++, Op.getBandwidth());
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemReadOp>(op)) {
-    //TODO: size 
-    int dlines = Op.getDlines();
-    int vol = Op.getVol();
-    auto key = getAllocDevice(Op.getBuffer());
+
+    Value buffer = valueIds[Op.getBuffer()];
+    auto allocOp = buffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
+    int dlines = Op.getDlines(allocOp);
+    int vol = Op.getVol(allocOp);
+    
+    auto key = getAllocDevice(buffer);
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
     execution_time = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Read);
     int idx = Op.getBank();
-
+    
+    
     if(Op.getConnection()!=Value()){
-      key = getAllocDevice(Op.getConnection());
-      auto connection = static_cast<xilinx::equeue::Connection *>(deviceMap[key].get());
-      execution_time = std::max({execution_time, connection->getReadOrWriteCycles(Op.getVol())});
-      return connection->scheduleEvent(0, time, execution_time, {idx}, {mem});
+      Value connection = valueIds[Op.getConnection()];
+      auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
+      execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
+      con->scheduleEvent(0, time, execution_time, {idx}, {mem});
     }else{
-      return mem->scheduleEvent(idx, time, execution_time, true);
+      mem->scheduleEvent(idx, time, execution_time, true);
     }
+    return time;
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemWriteOp>(op)) {
-    int vol = Op.getVol();
-    int dlines = Op.getDlines();
-    auto key = getAllocDevice(Op.getBuffer());
+    Value buffer = valueIds[Op.getBuffer()];
+    auto allocOp = buffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
+    int dlines = Op.getDlines(allocOp);
+    int vol = Op.getVol(allocOp);
+    
+    auto key = getAllocDevice(buffer);
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
     execution_time = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Write);
     int idx = Op.getBank();
     
+    
     if(Op.getConnection()!=Value()){
-      key = getAllocDevice(Op.getConnection());
-      auto connection = static_cast<xilinx::equeue::Connection *>(deviceMap[key].get());
-      execution_time = std::max({execution_time, connection->getReadOrWriteCycles(Op.getVol())});
-      return connection->scheduleEvent(0, time, execution_time, {idx}, {mem});
+      Value connection = valueIds[Op.getConnection()];
+      auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
+      execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
+      con->scheduleEvent(0, time, execution_time, {idx}, {mem});
     }else{
-      return mem->scheduleEvent(idx, time, execution_time, true);
+      mem->scheduleEvent(idx, time, execution_time, true);
     }
+    return time;
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemCopyOp>(op)) {
-    LLVM_DEBUG(llvm::dbgs()<<"here----"<<"\n");
-    int vol = Op.getVol();
-    int dlines = Op.getDlines();
     
-    auto srcKey = getAllocDevice(Op.getSrcBuffer());
-    auto destKey = getAllocDevice(Op.getDestBuffer());
+    Value srcBuffer = valueIds[Op.getSrcBuffer()];
+    Value destBuffer = valueIds[Op.getDestBuffer()];
+    auto srcAllocOp = srcBuffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
+    auto destAllocOp = srcBuffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
+    int dlines = Op.getDlines(srcAllocOp, destAllocOp);
+    int vol = Op.getVol(srcAllocOp, destAllocOp);
+    
+    auto srcKey = getAllocDevice(srcBuffer);
+    auto destKey = getAllocDevice(destBuffer);
     
     auto srcMem = static_cast<xilinx::equeue::Memory *>(deviceMap[srcKey].get());
     mem_tids.push_back(srcMem->uid);
@@ -223,9 +237,17 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     //clean outdated events
     int src_idx = Op.getSrcBank();
     int dest_idx = Op.getDestBank();
-    return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {srcMem, destMem});
+    Value connection = valueIds[Op.getConnection()];
+    if(connection!=Value()){
+      auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
+      execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
+      return dma->scheduleEvent(0, time, execution_time, {0, src_idx, dest_idx}, {con, srcMem, destMem});
+    }else{
+      return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {srcMem, destMem});
+    }
   }
   else if (auto Op = mlir::dyn_cast<mlir::linalg::GenericOp>(op)) {
+    //TODO: connection not modeled here
     auto cur_time = time;
     //TODO: there should be some analysis on common channel, but ignore for now
     auto total_loop = 1;
@@ -711,16 +733,6 @@ void simulateFunction(mlir::FuncOp &toplevel)
   }
 
 }
-template <typename FuncT>
-void walkRegions(MutableArrayRef<Region> regions, const FuncT &func) {
-  for (Region &region : regions)
-    for (Block &block : region) {
-      func(block);
-      // Traverse all nested regions.
-      for (Operation &operation : block)
-        walkRegions(operation.getRegions(), func);
-    }
-}
   void printValueRef(const Value& value) {
     if (value.getDefiningOp())
       llvm::outs() << value.getDefiningOp()->getName();
@@ -733,49 +745,73 @@ void walkRegions(MutableArrayRef<Region> regions, const FuncT &func) {
     llvm::outs() << " ";
   };
 
+template <typename FuncT1, typename FuncT2>
+inline void walkRegions(MutableArrayRef<Region> regions, const FuncT1 &func1, const FuncT2 &func2) {
+  for (Region &region : regions)
+    for (Block &block : region) {
+      func1(block);
+      // Traverse all nested regions.
+      for (Operation &operation : block){
+        walkRegions(operation.getRegions(), func1, func2);
+        func2(operation);
+      }
+    }
+}
 /// link operands of launch with region arguments of launch region
 /// so that a region argument is mapped to its defining Op
 void buildIdMap(mlir::FuncOp &toplevel){
   walkRegions(*toplevel.getCallableRegion(), [&](Block &block) {
-    // build iter init_value map
-    auto pop = block.getParentOp();
-    if( auto Op = llvm::dyn_cast<mlir::scf::ForOp>(pop) ) {
-      auto arg_it = Op.getRegionIterArgs().begin();
-      for ( Value operand : Op.getIterOperands() ){
-        iterInitValue.insert({*arg_it, valueIds[operand]});
-        valueIds.insert({*arg_it, *arg_it});
-        arg_it += 1;
+      // build iter init_value map
+      auto pop = block.getParentOp();
+      if( auto Op = llvm::dyn_cast<mlir::scf::ForOp>(pop) ) {
+        auto arg_it = Op.getRegionIterArgs().begin();
+        for ( Value operand : Op.getIterOperands() ){
+          iterInitValue.insert({*arg_it, valueIds[operand]});
+          valueIds.insert({*arg_it, *arg_it});
+          arg_it += 1;
+        }
+      } else if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
+        auto arg_it = block.args_begin();
+        for ( Value operand : Op.getLaunchOperands() ){
+          valueIds.insert({*arg_it, valueIds[operand]});
+          arg_it += 1;
+        }
+      } else {
+        for (BlockArgument argument : block.getArguments())
+          valueIds.insert({argument, argument});
       }
-    } else if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
-      auto arg_it = block.args_begin();
-      for ( Value operand : Op.getLaunchOperands() ){
-        valueIds.insert({*arg_it, valueIds[operand]});
-        arg_it += 1;
-      }
-    } else {
-      for (BlockArgument argument : block.getArguments())
-        valueIds.insert({argument, argument});
-    }
-    for (Operation &operation : block) {
+    }, [&](Operation &operation){
       //get_comp operation
       if(auto Op = llvm::dyn_cast<xilinx::equeue::GetCompOp>(operation)){
         auto create_comp = valueIds[Op.getCompHandler()];
         auto name = Op.getName();
-        Value comp;
-        for(auto comp_op: create_comp.getDefiningOp()->getOperands()){
-          if(comp_op.getDefiningOp()->getAttr("name").cast<StringAttr>().getValue()==name){
-            comp = comp_op;
-            break;
-          }
-        }
+        auto comp = compMap[create_comp][name.str()];
         valueIds.insert({operation.getResult(0), comp});
         
       }else{
+        if(auto Op = llvm::dyn_cast<xilinx::equeue::CreateCompOp>(operation)){
+          std::vector<std::string> names(Op.getCompStrList());
+          int i = 0; 
+          std::map<std::string, mlir::Value> nameCompMap;
+          for(auto name: names){
+            nameCompMap.insert({name, valueIds[Op.getOperand(i)]});
+            i++;
+          }
+          compMap.insert({operation.getResult(0), nameCompMap});
+        }
+        else if(auto Op = llvm::dyn_cast<xilinx::equeue::AddCompOp>(operation)){
+          Value create_comp =  valueIds[Op.getCompHandler()];
+          std::vector<std::string> names(Op.getCompStrList());
+          int i = 1; 
+          for(auto name: names){
+            compMap[create_comp].insert({name, valueIds[Op.getOperand(i)]});
+            i++;
+          }
+        }
         for (Value result : operation.getResults()){
           valueIds.insert({result, result});
         }
       }
-    }
   });
 }
 void buildExMap(mlir::FuncOp &toplevel){
@@ -789,7 +825,7 @@ void buildExMap(mlir::FuncOp &toplevel){
       blockExs.insert({&block, blockExs[pop->getBlock()]*ex_times});
     else
       blockExs.insert({&block, ex_times});
-  });
+  }, [&](Operation &operation){});
 }
 // todo private:
 public:
@@ -821,6 +857,7 @@ private:
   llvm::DenseMap<mlir::Value, mlir::Value> iterInitValue;
 
   llvm::DenseMap<mlir::Value, mlir::Value> valueIds;
+  llvm::DenseMap<mlir::Value, std::map<std::string, mlir::Value> > compMap;
   llvm::DenseMap<mlir::Block *, uint64_t> blockExs;
 }; // Runner
 }
