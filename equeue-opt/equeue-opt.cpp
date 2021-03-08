@@ -165,8 +165,8 @@ int main(int argc, char **argv) {
         llvm::errs() << "cannot find configration file"<<configFilename.c_str()<<"!\n";
       }
     }
-    
-    generator.firMultiKernel();
+    //generator.firSingleKernel();
+    generator.scaleSimGenerator();
   }
   else{
     // Set up the input file.

@@ -8,7 +8,6 @@ using namespace mlir::edsc::intrinsics;
 using namespace std;
 
 
-/*
 void MLIRGenImpl::scaleSimGenerator(){
   // output feature map
   int E_h = (layer_config.ifmap_height - layer_config.filter_height - layer_config.stride) / layer_config.stride;
@@ -22,48 +21,48 @@ void MLIRGenImpl::scaleSimGenerator(){
   
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());  
   auto f32Type = builder.getF32Type();
-  auto ifmapType = MemRefType::get({layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, f32Type);
-  auto filterType = MemRefType::get({layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, f32Type);
-  auto ofmapType = MemRefType::get({layer_config.num_filter, E_h, E_w}, f32Type);
+  //auto ifmapType = MemRefType::get({layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, f32Type);
+  //auto filterType = MemRefType::get({layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, f32Type);
+  //auto ofmapType = MemRefType::get({layer_config.num_filter, E_h, E_w}, f32Type);
   auto f =
-      makeFunction("graph", {}, {ifmapType, filterType});
+      makeFunction("graph", {}, {});
   theModule.push_back(f);
   ScopedContext scope(builder, f.getLoc());
   
   Value proc, mem, comp;
   for(int i = 0; i < accel_config.array_height; i++){
     for(int j = 0; j < accel_config.array_width; j++){
-      proc = create_proc("proc"+to_string(i)+","+to_string(j), "AIEngine");
-      mem = create_mem("mem"+to_string(i)+","+to_string(j), ArrayRef<int64_t>{ 3 }, "f32", "RegisterFile", 3);
+      proc = create_proc("AIEngine");
+      mem = create_mem(ArrayRef<int64_t>{ 4 }, 32, "RegisterFile");
       if(i==0&&j==0) {
-        comp = create_comp("pe_"+to_string(i)+","+to_string(j), ValueRange{mem, proc}) ;
+        comp = create_comp(ArrayRef<std::string>{"mem", "proc"}, ValueRange{mem, proc}) ;
       } else {
-        comp = create_comp("pe_"+to_string(i)+","+to_string(j), ValueRange{mem, proc, comp});
+        comp = create_comp(ArrayRef<std::string>{"mem", "proc", "pes"}, ValueRange{mem, proc, comp});
       }
     }
   }
-
-  Value sram(create_mem("mem", ArrayRef<int64_t>{ accel_config.ifmap_sram * 1024 }, "f32", "SRAM", accel_config.array_height + accel_config.array_width ) );
+  //lines, data size, register type, banks
+  Value sram(create_mem(ArrayRef<int64_t>{ accel_config.ifmap_sram }, 32, "SRAM", accel_config.array_height + accel_config.array_width ) );
   Value dma_col;
   for(int i = 0; i < accel_config.array_width; i++){
-    Value dma(create_dma("dma"+to_string(i)));
+    Value dma = create_dma();
     if(i==0) {
-      dma_col = create_comp("dma_col", ValueRange{dma}) ;
+      dma_col = create_comp(ArrayRef<std::string>{"dma"}, ValueRange{dma}) ;
     }else{
-      dma_col = create_comp("dma_col", ValueRange{dma, dma_col}) ;
+      dma_col = create_comp(ArrayRef<std::string>{"dma", "dma_col"}, ValueRange{dma, dma_col}) ;
     }
   }
   Value dma_row;//dma for row
   for(int i = 0; i < accel_config.array_height; i++){
-    Value dma(create_dma("dma"+to_string(i)));
+    Value dma = create_dma();
     if(i==0) {
-      dma_row = create_comp("dma_row", ValueRange{dma}) ;
+      dma_row = create_comp(ArrayRef<std::string>{"dma"}, ValueRange{dma}) ;
     }else{
-      dma_row = create_comp("dma_row", ValueRange{dma, dma_row}) ;
+      dma_row = create_comp(ArrayRef<std::string>{"dma", "dma_row"}, ValueRange{dma, dma_row}) ;
     }
   }
-  Value processor(create_proc("proc", "MicroPlate") );
-  Value accel( create_comp("accel", ValueRange{ comp, processor, sram, dma_row, dma_col}) );
+  Value processor(create_proc("MicroPlate") );
+  Value accel( create_comp(ArrayRef<std::string>{"pe_array", "proc", "sram", "dma_row", "dma_col"}, ValueRange{ comp, processor, sram, dma_row, dma_col}) );
   Value signal = start_op();
     
   ValueRange res;
@@ -71,11 +70,11 @@ void MLIRGenImpl::scaleSimGenerator(){
     int num_v_fold = ceil( (float)layer_config.num_filter / (float)accel_config.array_width);
     int num_h_fold = ceil( (float)e2 / (float)accel_config.array_height);
 
-    res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+    res = LaunchOpBuilder(signal, processor, ValueRange{accel}, 
       [&](ValueRange ins){
         accel = ins[0];
-        Value ifmap = ins[1];
-        Value filter = ins[2];
+        Value ifmap;
+        Value filter;
         Value ofmap;
         processor = get_comp(accel, "proc");
         
@@ -84,18 +83,18 @@ void MLIRGenImpl::scaleSimGenerator(){
         SmallVector<Value, 20> dma_rows, dma_cols;
         
         for(int i = accel_config.array_height-1; i >= 0 ; i--){
-          dma_rows.push_back(get_comp(dma_row, "dma"+to_string(i) ));
+          dma_rows.push_back(get_comp(dma_row, "dma" ));
           if(i!=0) dma_row = get_comp(dma_row, "dma_row");
         }
         for(int i = accel_config.array_width-1; i >= 0; i--){
-          dma_cols.push_back(get_comp(dma_col, "dma"+to_string(i) ));
+          dma_cols.push_back(get_comp(dma_col, "dma" ));
           if(i!=0) dma_col = get_comp(dma_col, "dma_col");
         }
         
         sram = get_comp(accel, "mem");
-        Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, "f32", f32Type);
-        Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, "f32", f32Type);
-        Value obuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, E_h, E_w}, "f32", f32Type);      
+        Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, 32, f32Type);
+        Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, 32, f32Type);
+        Value obuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, E_h, E_w}, 32, f32Type);      
         
         //get all allocations done
         SmallVector<SmallVector<Value, 20>, 20> pes, mems, procs;
@@ -109,16 +108,16 @@ void MLIRGenImpl::scaleSimGenerator(){
           SmallVector<Value, 20> line_wbuffer, line_obuffer, line_ibuffer;
           for(int j = accel_config.array_width-1; j >= 0; j--){
             if(j==accel_config.array_width-1 && i==accel_config.array_height-1){
-              pe = get_comp(accel, "pe_"+to_string(i)+","+to_string(j));
+              pe = get_comp(accel, "pe_array");
             }else{
-              pe = get_comp(pe, "pe_"+to_string(i)+","+to_string(j));
+              pe = get_comp(pe, "pes");
             }
             
-            mem = get_comp(pe, "mem"+to_string(i)+","+to_string(j));
-            proc = get_comp(pe, "proc"+to_string(i)+","+to_string(j));
-            wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
-            obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
-            ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);// ArrayRef<int64_t>{ 4 }
+            mem = get_comp(pe, "mem");
+            proc = get_comp(pe, "proc");
+            wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);
+            obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);
+            ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);// ArrayRef<int64_t>{ 4 }
             
             
             line_pe.push_back(pe);
@@ -156,7 +155,7 @@ void MLIRGenImpl::scaleSimGenerator(){
           for(int c = 0; c < col_this_fold; c++){
             if(t>=c && t+col_this_fold-c < num_v_fold*num_h_fold*px_per_conv + 
             last_width + last_height){
-              col_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);
+              col_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ArrayRef<int64_t>{1}, c, 0);
               if(!first){
                 prev_col_cpy = control_and(ValueRange{col_cpy_end, prev_col_cpy});
               }else{
@@ -172,7 +171,7 @@ void MLIRGenImpl::scaleSimGenerator(){
           for(int r = 0; r < row_this_fold; r++){
             if(t>=r && t+row_this_fold-r < num_v_fold*num_h_fold*px_per_conv + 
             last_width + last_height){
-              row_cpy_end = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{c0}, col_this_fold+r, 1);
+              row_cpy_end = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
               if(!first){
                 prev_row_cpy = control_and(ValueRange{row_cpy_end, prev_row_cpy});
               }else{
@@ -197,9 +196,9 @@ void MLIRGenImpl::scaleSimGenerator(){
                 ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c] }, 
                 [&](ValueRange ins){
                 filter = read_op(ins[1]);
-                ifmap = read_op(ins[0],ValueRange{}, 1);
+                ifmap = read_op(ins[0], 1);
                 ofmap = std_mulf(ifmap, filter);
-                Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                Value ofmap_old = read_op(ins[2], 2);
                 ofmap = std_addf(ofmap, ofmap_old);
                 return_op(ValueRange{ifmap, filter, ofmap});
               });
@@ -337,11 +336,11 @@ void MLIRGenImpl::scaleSimGenerator(){
     // ------------------------------------------------------
     // setting up memories for input, output, weight. set up for processors and pe array
     // ---------------------------------------------------
-    auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+    res = LaunchOpBuilder(signal, processor, ValueRange{accel}, 
     [&](ValueRange ins){
       accel = ins[0];
-      Value ifmap = ins[1];
-      Value filter = ins[2];
+      Value ifmap;
+      Value filter;
       Value ofmap;
       processor = get_comp(accel, "proc");
       // dma copy and paste between memories, allow parallel 
@@ -351,18 +350,17 @@ void MLIRGenImpl::scaleSimGenerator(){
       
       // dmas associated with r/cs
       for(int i = accel_config.array_height-1; i >= 0 ; i--){
-        dma_rows.push_back(get_comp(dma_row, "dma"+to_string(i) ));
+        dma_rows.push_back(get_comp(dma_row, "dma" ));
         if(i!=0) dma_row = get_comp(dma_row, "dma_row");
       }
       for(int i = accel_config.array_width-1; i >= 0; i--){
-        dma_cols.push_back(get_comp(dma_col, "dma"+to_string(i) ));
+        dma_cols.push_back(get_comp(dma_col, "dma" ));
         if(i!=0) dma_col = get_comp(dma_col, "dma_col");
       }
-      
       sram = get_comp(accel, "mem");
-      Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, "f32", f32Type);
-      Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, "f32", f32Type);
-      Value obuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, E_h, E_w}, "f32", f32Type);      
+      Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, 32, f32Type);
+      Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, 32, f32Type);
+      Value obuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, E_h, E_w}, 32, f32Type);      
       
       //get all allocations done
       SmallVector<SmallVector<Value, 20>, 20> pes, mems, procs;
@@ -379,16 +377,16 @@ void MLIRGenImpl::scaleSimGenerator(){
         SmallVector<Value, 20> line_wbuffer, line_obuffer, line_ibuffer;
         for(int j = accel_config.array_width-1; j >= 0; j--){
           if(j==accel_config.array_width-1 && i==accel_config.array_height-1){
-            pe = get_comp(accel, "pe_"+to_string(i)+","+to_string(j));
+            pe = get_comp(accel, "pe_array");
           }else{
-            pe = get_comp(pe, "pe_"+to_string(i)+","+to_string(j));
+            pe = get_comp(pe, "pes");
           }
           
-          mem = get_comp(pe, "mem"+to_string(i)+","+to_string(j));
-          proc = get_comp(pe, "proc"+to_string(i)+","+to_string(j));
-          wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
-          obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
-          ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);// ArrayRef<int64_t>{ 4 }
+          mem = get_comp(pe, "mem");
+          proc = get_comp(pe, "proc");
+          wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);
+          obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);
+          ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);// ArrayRef<int64_t>{ 4 }
           
           
           line_pe.push_back(pe);
@@ -423,18 +421,22 @@ void MLIRGenImpl::scaleSimGenerator(){
               // loop through the PE row
               for(int t = 0; t < row_this_fold-1; t++){//seq_for
                 start_cpy = start_op();
+                llvm::outs()<<row_this_fold<<"\n";
+                llvm::outs()<<"======"<<t<<"\n";
                 SmallVector<SmallVector<Value, 20>, 20> ifmap_flight;
                 //-----------------------------------
                 // read
                 //----------------------------------
                 for(int r = 0; r < row_this_fold-1; r++){//par_for
                   // one row
+                  
+  
                   SmallVector<Value, 20> ifmap_flight_line;
                   for(int c = 0; c < col_this_fold; c++){//par_for
                     // read from buffer
                     auto pe_res = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{ibuffer2s[r][c]}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0], ValueRange{});
+                      ifmap = read_op(ins[0]);
                       return_op(ValueRange{ifmap});
                     });
                 
@@ -476,7 +478,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                 start_cpy = start_op();
                 // this loop seems to cpy the first row
                 for(int c = 0; c < col_this_fold; c++){//par_for
-                  input_cpy = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
+                  input_cpy = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][c], dma_cols[c], ArrayRef<int64_t>{1}, c, 0);//c,0
                   if(c==0){
                     prev_input_cpy=control_and(ValueRange{input_cpy});
                   }else{
@@ -501,8 +503,9 @@ void MLIRGenImpl::scaleSimGenerator(){
                 // copying weights in
                 Value start_weight_copy = start_op();
                 Value weight_cpy,  prev_weight_cpy;
-                for(int n = 0; num ; n++){
-                  weight_cpy = memcpy_op(start_weight_copy, wbuffer, wbuffer2s[n][0], dma_cols[n], ValueRange{c0}, n, 0);//c,0
+
+                for(int n = 0; n < num ; n++){
+                  weight_cpy = memcpy_op(start_weight_copy, wbuffer, wbuffer2s[n][0], dma_cols[n], ArrayRef<int64_t>{1}, n, 0);//c,0
                   if(n==0){
                     prev_weight_cpy=control_and(ValueRange{weight_cpy});
                   }else{
@@ -513,6 +516,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                 //---------------------------------
                 // read out current values in PE
                 //---------------------------------
+                
                 Value start_compute_signal = start_op();
                 SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, ofmap_flight;
                 for(int r = 0; r < row_this_fold; r++){//par_for
@@ -523,9 +527,9 @@ void MLIRGenImpl::scaleSimGenerator(){
                       ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c]}, 
                       [&](ValueRange ins){
                       ifmap = read_op(ins[0]);
-                      filter = read_op(ins[1], ValueRange{}, 1);
+                      filter = read_op(ins[1], 1);
                       ofmap = std_mulf(ifmap, filter);
-                      Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                      Value ofmap_old = read_op(ins[2], 2);
                       ofmap = std_addf(ofmap, ofmap_old);
                       // precalculated
                       // ofmap[r][c] = ofmap[r][c] + w[r][c] * i[r][c] 
@@ -545,7 +549,6 @@ void MLIRGenImpl::scaleSimGenerator(){
                   ofmap_flight.push_back(ofmap_flight_line);
                 }
                 await_op(ValueRange{prev_compute_signal});
-
                 // -------------------------------------------
                 // value writeback and handle outputs
                 // loop over the flight_map
@@ -622,7 +625,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                     }
                   }
                 }
-                await_op(ValueRange{prev_compute_signal});             
+                await_op(ValueRange{prev_compute_signal});     
               }   
             }
         }
@@ -649,11 +652,11 @@ void MLIRGenImpl::scaleSimGenerator(){
       auto remaining_cols = layer_config.num_filter;
       
       //isolated from above
-      res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
+      res = LaunchOpBuilder(signal, processor, ValueRange{accel}, 
         [&](ValueRange ins){
           accel = ins[0];
-          Value ifmap = ins[1];
-          Value filter = ins[2];
+          Value ifmap;
+          Value filter;
           Value ofmap;
           processor = get_comp(accel, "proc");
           
@@ -662,18 +665,18 @@ void MLIRGenImpl::scaleSimGenerator(){
           SmallVector<Value, 20> dma_rows, dma_cols;
           
           for(int i = accel_config.array_height-1; i >= 0 ; i--){
-            dma_rows.push_back(get_comp(dma_row, "dma"+to_string(i) ));
+            dma_rows.push_back(get_comp(dma_row, "dma" ));
             if(i!=0) dma_row = get_comp(dma_row, "dma_row");
           }
           for(int i = accel_config.array_width-1; i >= 0; i--){
-            dma_cols.push_back(get_comp(dma_col, "dma"+to_string(i) ));
+            dma_cols.push_back(get_comp(dma_col, "dma" ));
             if(i!=0) dma_col = get_comp(dma_col, "dma_col");
           }
           
           sram = get_comp(accel, "mem");
-          Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, "f32", f32Type);
-          Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, "f32", f32Type);
-          Value obuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, E_h, E_w}, "f32", f32Type);      
+          Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, 32, f32Type);
+          Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, 32, f32Type);
+          Value obuffer = alloc_op(sram, ArrayRef<int64_t>{layer_config.num_filter, E_h, E_w}, 32, f32Type);      
           
           //get all allocations done
           SmallVector<SmallVector<Value, 20>, 20> pes, mems, procs;
@@ -690,16 +693,16 @@ void MLIRGenImpl::scaleSimGenerator(){
             SmallVector<Value, 20> line_wbuffer, line_obuffer, line_ibuffer;
             for(int j = accel_config.array_width-1; j >= 0; j--){
               if(j==accel_config.array_width-1 && i==accel_config.array_height-1){
-                pe = get_comp(accel, "pe_"+to_string(i)+","+to_string(j));
+                pe = get_comp(accel, "pe_array");
               }else{
-                pe = get_comp(pe, "pe_"+to_string(i)+","+to_string(j));
+                pe = get_comp(pe, "pes");
               }
               
               mem = get_comp(pe, "mem"+to_string(i)+","+to_string(j));
               proc = get_comp(pe, "proc"+to_string(i)+","+to_string(j));
-              wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
-              obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);
-              ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, "f32", f32Type);// ArrayRef<int64_t>{ 4 }
+              wbuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);
+              obuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);
+              ibuffer2 = alloc_op(mem, ArrayRef<int64_t>{ 1 }, 32, f32Type);// ArrayRef<int64_t>{ 4 }
               
               
               line_pe.push_back(pe);
@@ -747,7 +750,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                   for(int c = 0; c < col_this_fold; c++){//par_for
                     auto pe_res = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{wbuffer2s[r][c]}, 
                       [&](ValueRange ins){
-                      filter = read_op(ins[0], ValueRange{});
+                      filter = read_op(ins[0]);
                       return_op(ValueRange{filter});
                     });
                     filter_cpy = pe_res[0];
@@ -779,7 +782,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                 await_op(ValueRange{prev_filter_cpy});
                 start_cpy = start_op();
                 for(int c = 0; c < col_this_fold; c++){//par_for
-                  filter_cpy = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ValueRange{c0}, c, 0);//c,0
+                  filter_cpy = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ArrayRef<int64_t>{1}, c, 0);//c,0
                   if(c==0){
                     prev_filter_cpy=control_and(ValueRange{filter_cpy});
                   }else{
@@ -799,7 +802,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                 //for(int c = 0 ; c < col_this_fold; c++){//par_for
                 if (t == 0) {
                   for(int r = 0; r < row_this_fold; r++){//par_for
-                    compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ValueRange{}, r, 0);
+                    compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], r, 0);
                     if(r==0){
                       prev_compute_signal = compute_signal;
                     } else {
@@ -807,7 +810,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                     }
                   }
                 } else if (t < e2) {
-                  prev_compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][0], dma_rows[0], ValueRange{c0}, 0, 0);
+                  prev_compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][0], dma_rows[0], ArrayRef<int64_t>{1}, 0, 0);
                 } else {
                   prev_compute_signal = start_cpy;
                 }
@@ -824,9 +827,9 @@ void MLIRGenImpl::scaleSimGenerator(){
                       ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c]}, 
                       [&](ValueRange ins){
                       ifmap = read_op(ins[0]);
-                      filter = read_op(ins[1], ValueRange{}, 1);
+                      filter = read_op(ins[1], 1);
                       ofmap = std_mulf(ifmap, filter);
-                      Value ofmap_old = read_op(ins[2], ValueRange{}, 2);
+                      Value ofmap_old = read_op(ins[2], 2);
                       ofmap = std_addf(ofmap, ofmap_old);
                       return_op(ValueRange{ifmap, ofmap});
                     });
@@ -927,6 +930,7 @@ void MLIRGenImpl::scaleSimGenerator(){
         return_op(ValueRange{});
     });
     //builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
+    
   }
   await_op(ValueRange{res[0]});
   std_ret();
@@ -934,4 +938,4 @@ void MLIRGenImpl::scaleSimGenerator(){
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }
-*/
+

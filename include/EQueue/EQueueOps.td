@@ -385,6 +385,10 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
   }];
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value buffer, Value connection = Value(), ArrayRef<int64_t> size = {}, int64_t bank = 0"
+	>, OpBuilder<
+    "Builder builder, OperationState &result, Value buffer, ArrayRef<int64_t> size, int64_t bank = 0"
+	>, OpBuilder<
+    "Builder builder, OperationState &result, Value buffer, int64_t bank"
 	>];
 	//Ignore Variadic<Index>:$offset at this moment
   let arguments = (ins AnyMemRef: $buffer, Optional<I32>: $connection, OptionalAttr<I64ElementsAttr>: $size, OptionalAttr<I64Attr>: $bank);
@@ -455,9 +459,13 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
   }];
 
   let builders = [OpBuilder<
-    "Builder builder, OperationState &result, Value value, Value buffer, Value connection = Value(), int64_t bank = 0"
+    "Builder builder, OperationState &result, Value value, Value buffer, Value connection = Value(), ArrayRef<int64_t> size = {}, int64_t bank = 0"
+	>, OpBuilder<
+    "Builder builder, OperationState &result, Value value, Value buffer, ArrayRef<int64_t> size, int64_t bank = 0"
+	>, OpBuilder<
+    "Builder builder, OperationState &result, Value value, Value buffer, int64_t bank"
 	>];
-  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, Optional<I32>: $connection, OptionalAttr<I64Attr>: $bank);
+  let arguments = (ins AnyScalarOrTensor: $value, AnyMemRef: $buffer, Optional<I32>: $connection,  OptionalAttr<I64ElementsAttr>: $size, OptionalAttr<I64Attr>: $bank);
   let extraClassDeclaration = [{
     Value getBuffer(){
       return getOperand(1);
@@ -669,7 +677,14 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
   let builders = [OpBuilder<
     "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, Value connection = Value(),"
     " ArrayRef<int64_t> size = {}, int64_t src_bank = 0, int64_t dest_bank = 0"
-	>];
+	>, OpBuilder<
+    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, "
+    " ArrayRef<int64_t> size, int64_t src_bank = 0, int64_t dest_bank = 0"
+	>,  OpBuilder<
+    "Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, Value dma, "
+    " int64_t src_bank, int64_t dest_bank"
+	>
+	];
   let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, I32: $connection, OptionalAttr<I64ElementsAttr>: $size,
   OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank);
   let results = (outs EQueue_SignalType: $done);

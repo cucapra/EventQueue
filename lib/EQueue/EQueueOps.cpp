@@ -270,12 +270,32 @@ static ParseResult parseMemDeallocOp(OpAsmParser &parser,
 //===----------------------------------------------------------------------===//
 // MemWriteOp 
 //===----------------------------------------------------------------------===//
-void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, Value connection, int64_t bank) {
+void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, Value connection, ArrayRef<int64_t> size, int64_t bank) {
   result.addOperands(value);
   result.addOperands(buffer);
   if(connection!=Value()){
     result.addOperands(connection);
   }
+  if(size!=ArrayRef<int64_t>{}){
+	  result.addAttribute("size", builder.getI64TensorAttr(size));
+	}
+	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
+}
+
+
+void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, ArrayRef<int64_t> size, int64_t bank) {
+  result.addOperands(value);
+  result.addOperands(buffer);
+  if(size!=ArrayRef<int64_t>{}){
+	  result.addAttribute("size", builder.getI64TensorAttr(size));
+	}
+	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
+}
+
+
+void MemWriteOp::build(Builder builder, OperationState &result, Value value, Value buffer, int64_t bank) {
+  result.addOperands(value);
+  result.addOperands(buffer);
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
 }
 //===----------------------------------------------------------------------===//
@@ -286,16 +306,44 @@ void MemReadOp::build(Builder builder, OperationState &result, Value buffer, Val
   if(connection!=Value()){
     result.addOperands(connection);
   }
-	result.addAttribute("size", builder.getI64TensorAttr(size));
+  if(size!=ArrayRef<int64_t>{}){
+	  result.addAttribute("size", builder.getI64TensorAttr(size));
+	}
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
 
   auto memrefType = buffer.getType().cast<MemRefType>();
-  
-	auto tensorType = RankedTensorType::get(size, memrefType.getElementType());
-	result.types.push_back(tensorType);//tensor
+  if(size!=ArrayRef<int64_t>{}){
+	  result.types.push_back(RankedTensorType::get(memrefType.getShape(), memrefType.getElementType()));
+	}else{
+	  result.types.push_back(RankedTensorType::get(size, memrefType.getElementType()));
+	}
 	
 }
 
+void MemReadOp::build(Builder builder, OperationState &result, Value buffer, ArrayRef<int64_t> size, int64_t bank) {
+  result.addOperands(buffer);
+  if(size!=ArrayRef<int64_t>{}){
+	  result.addAttribute("size", builder.getI64TensorAttr(size));
+	}
+	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
+
+  auto memrefType = buffer.getType().cast<MemRefType>();
+  if(size!=ArrayRef<int64_t>{}){
+	  result.types.push_back(RankedTensorType::get(memrefType.getShape(), memrefType.getElementType()));
+	}else{
+	  result.types.push_back(RankedTensorType::get(size, memrefType.getElementType()));
+	}
+}
+
+void MemReadOp::build(Builder builder, OperationState &result, Value buffer, int64_t bank) {
+  result.addOperands(buffer);
+	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
+
+  auto memrefType = buffer.getType().cast<MemRefType>();
+	auto tensorType = RankedTensorType::get(memrefType.getShape(), memrefType.getElementType());
+	result.types.push_back(tensorType);//tensor
+	
+}
 //===----------------------------------------------------------------------===//
 // UnkownSpecificationOp 
 //===----------------------------------------------------------------------===//
@@ -418,16 +466,45 @@ void MemCopyOp::build(Builder builder, OperationState &result, Value start, Valu
   result.addOperands(src_buffer);
   result.addOperands(dest_buffer);
   result.addOperands(dma);
-  result.addOperands(connection);
+  if(connection!=Value()){
+    result.addOperands(connection);
+  }
   //ValueRange offset,  
   //result.addOperands(offset);
-  result.addAttribute("size", builder.getI64TensorAttr(size));
+  if(size!=ArrayRef<int64_t>{}){
+    result.addAttribute("size", builder.getI64TensorAttr(size));
+  }
+	result.addAttribute("src_bank", builder.getI64IntegerAttr(src_bank));
+	result.addAttribute("dest_bank", builder.getI64IntegerAttr(dest_bank));
+	auto signalType = EQueueSignalType::get(builder.getContext());
+  result.types.push_back(signalType);
+}
+void MemCopyOp::build(Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, 
+  Value dma, ArrayRef<int64_t> size, int64_t src_bank, int64_t dest_bank) {
+  result.addOperands(start);
+  result.addOperands(src_buffer);
+  result.addOperands(dest_buffer);
+  result.addOperands(dma);
+  if(size!=ArrayRef<int64_t>{}){
+    result.addAttribute("size", builder.getI64TensorAttr(size));
+  }
 	result.addAttribute("src_bank", builder.getI64IntegerAttr(src_bank));
 	result.addAttribute("dest_bank", builder.getI64IntegerAttr(dest_bank));
 	auto signalType = EQueueSignalType::get(builder.getContext());
   result.types.push_back(signalType);
 }
 
+void MemCopyOp::build(Builder builder, OperationState &result, Value start, Value src_buffer, Value dest_buffer, 
+  Value dma, int64_t src_bank, int64_t dest_bank) {
+  result.addOperands(start);
+  result.addOperands(src_buffer);
+  result.addOperands(dest_buffer);
+  result.addOperands(dma);
+	result.addAttribute("src_bank", builder.getI64IntegerAttr(src_bank));
+	result.addAttribute("dest_bank", builder.getI64IntegerAttr(dest_bank));
+	auto signalType = EQueueSignalType::get(builder.getContext());
+  result.types.push_back(signalType);
+}
 
 
 

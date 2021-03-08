@@ -669,7 +669,7 @@ void simulateFunction(mlir::FuncOp &toplevel)
 {
   LLVM_DEBUG(llvm::dbgs()<<"========== start simulation ===========\n");
   auto hostIter = toplevel.getCallableRegion()->front().begin();
-  hostTable.host = true;
+  hostTable.host = true;//host can launch, create component, assign mem
   hostTable.name = "host";
   hostTable.next_iter = hostIter;
   hostTable.block = &toplevel.getCallableRegion()->front();
