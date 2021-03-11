@@ -175,8 +175,8 @@ int main(int argc, char **argv) {
       llvm::errs() << errorMessage << "\n";
       return 1;
     }
-
-    if (failed(MlirOptMain(output->os(), std::move(file), passPipeline,
+    //output->os()
+    if (failed(MlirOptMain(llvm::nulls(), std::move(file), passPipeline,
                            splitInputFile, verifyDiagnostics, verifyPasses,
                            allowUnregisteredDialects))) {
       return 1;

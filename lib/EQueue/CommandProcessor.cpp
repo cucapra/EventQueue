@@ -107,7 +107,6 @@ Value getAllocDevice(Value memRef){
   auto op = valueIds[memRef].getDefiningOp();
   if( mlir::dyn_cast<mlir::linalg::ReshapeOp>(op) ||
       mlir::dyn_cast<mlir::SubViewOp>(op)){
-    //llvm::outs()<<op->getOperand(0)<<"\n";
     return getAllocDevice(op->getOperand(0));
   }
   return valueIds[mlir::cast<xilinx::equeue::MemAllocOp>(op).getMemHandler()];
@@ -165,14 +164,14 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     auto allocOp = buffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
     int dlines = Op.getDlines(allocOp);
     int vol = Op.getVol(allocOp);
-    
     auto key = getAllocDevice(buffer);
+    
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
     mem_tids.push_back(mem->uid);
     execution_time = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Read);
     int idx = Op.getBank();
     
-    
+
     if(Op.getConnection()!=Value()){
       Value connection = valueIds[Op.getConnection()];
       auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
@@ -213,10 +212,10 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     auto srcAllocOp = srcBuffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
     auto destAllocOp = srcBuffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
     int dlines = Op.getDlines(srcAllocOp, destAllocOp);
-    int vol = Op.getVol(srcAllocOp, destAllocOp);
+    int vol = Op.getVol(srcAllocOp, destAllocOp);  
     
-    auto srcKey = getAllocDevice(srcBuffer);
     auto destKey = getAllocDevice(destBuffer);
+    auto srcKey = getAllocDevice(srcBuffer);
     
     auto srcMem = static_cast<xilinx::equeue::Memory *>(deviceMap[srcKey].get());
     mem_tids.push_back(srcMem->uid);
@@ -226,6 +225,7 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     mem_tids.push_back(destMem->uid);
     uint64_t writeTime = destMem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Write);
 
+
     //int total_size = srcMem->total_size;
     //int volume = dlines * total_size;
     int volume = dlines;
@@ -233,11 +233,11 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     auto dma = static_cast<xilinx::equeue::DMA *>(deviceMap[key].get());
     uint64_t dmaTime = dma->getTransferCycles(volume);
     execution_time = std::max({readTime, writeTime, dmaTime});        
-    LLVM_DEBUG(llvm::dbgs()<<"time----"<<execution_time<<"\n");
     //clean outdated events
     int src_idx = Op.getSrcBank();
     int dest_idx = Op.getDestBank();
     Value connection = valueIds[Op.getConnection()];
+
     if(connection!=Value()){
       auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
       execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
@@ -426,7 +426,8 @@ void scheduleOp(LauncherTable &l, uint64_t time, uint64_t pid)
   // emit trace event begin
 
   if( auto Op = llvm::dyn_cast<xilinx::equeue::AwaitOp>(c_next.op) ){
-  LLVM_DEBUG(llvm::dbgs()<<"[schedule] await op\n");
+    LLVM_DEBUG(llvm::dbgs()<<"[schedule] await op\n");
+    llvm::outs()<<"[schedule] await op\n";
     if(waitForSignal(c_next.op))
       return;
   }
@@ -440,6 +441,7 @@ void scheduleOp(LauncherTable &l, uint64_t time, uint64_t pid)
       opMap[c_next.op]++;
     }
     LLVM_DEBUG(llvm::dbgs()<<"[schedule] updated execution\n");
+    
     c_next.start_time = time;
     c_next.end_time = modelOp(time, c_next.op, c_next.mem_tids);
 
@@ -608,6 +610,7 @@ void checkEventQueue(LauncherTable& l){
 
 void setOpEntry(LauncherTable& l, uint64_t& tid){
     auto &opEntry = l.op_entry;
+    auto size = launchTables.size();
     if(!opEntry.op){
       while(true){
         if( !l.block || l.next_iter == l.block->end() ) break;
@@ -657,6 +660,7 @@ void setOpEntry(LauncherTable& l, uint64_t& tid){
         }
       }
     }
+    assert(size == launchTables.size());
 }
 
 void nextEndTimes( LauncherTable &l, std::vector<uint64_t> &next_times){
@@ -680,12 +684,14 @@ void simulateFunction(mlir::FuncOp &toplevel)
   while (running) {
     LLVM_DEBUG(llvm::dbgs()<<"1. setOpEntry\n");
     setOpEntry(hostTable, tid);
+    //llvm::outs()<<"1. setOpEntry "<<launchTables.size()<<"\n";
+    int i = 0;
     for ( auto iter = launchTables.begin(); iter != launchTables.end(); iter++){
       LLVM_DEBUG(llvm::dbgs()<<iter->first<<":\n");
       setOpEntry(iter->second, tid);
     }
-
     LLVM_DEBUG(llvm::dbgs()<<"2. checkEventQueue\n");
+    //llvm::outs()<<"2. checkEventQueue\n";
     checkEventQueue(hostTable);
     checkControlQueue();
     for ( auto iter = launchTables.begin(); iter != launchTables.end(); iter++){
@@ -703,6 +709,7 @@ void simulateFunction(mlir::FuncOp &toplevel)
     if( !running ) break;
 
     LLVM_DEBUG(llvm::dbgs()<<"3. scheduleOp\n");
+    //llvm::outs()<<"3. scheduleOp\n";
     uint64_t pid = 0;
     scheduleOp(hostTable, time, pid++);
     for (auto iter = launchTables.begin(); iter!= launchTables.end(); iter++){
@@ -722,8 +729,8 @@ void simulateFunction(mlir::FuncOp &toplevel)
       time =  *std::min_element(next_times.begin(), next_times.end());
     }
     LLVM_DEBUG(llvm::dbgs()<<"Next end time: "<<time<<"\n");
-    //if(time > 2000) break;
     LLVM_DEBUG(llvm::dbgs()<<"4. finishOp\n");
+    //llvm::outs()<<"4. finishOp\n";
     pid = 0;
     finishOp(hostTable, time, pid++);
     for (auto iter = launchTables.begin(); iter!= launchTables.end(); iter++){

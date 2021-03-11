@@ -63,7 +63,7 @@ struct Device {
         if(events.empty()) return;
         auto it = events[idx].begin();
         for(; it != events[idx].end(); it++){
-            if(it->second >= now_time){
+            if(it->second > now_time){
                 if(it!=events[idx].begin()){
                   it--;
                   events[idx].erase(events[idx].begin(), it);
@@ -74,6 +74,8 @@ struct Device {
     }
     //schedule the task on this device
     uint64_t scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, bool cleanEvents=false){
+        if(exec_time==0) return start_time;
+        
         auto iter = events[idx].begin();
         if (cleanEvents) deleteOutdatedEvents(idx, start_time);
         if(events[idx].size()==1){
@@ -105,27 +107,24 @@ struct Device {
     //template <class T>
     uint64_t  scheduleEvent(int idx, uint64_t start_time, uint64_t exec_time, std::vector<int> idx_list, std::initializer_list<Device *> dlist )
     {
+        if(exec_time==0) return start_time;
         
         std::vector<uint64_t> start;
         start.push_back(start_time);
         start.push_back( (events[idx].end()-1)->second );
         int i = 0;
-        llvm::outs()<<"hello\n";
         //schedule right after the latest end time of all events
         for( auto device : dlist )
-        {   llvm::outs()<<start_time<<" "<<idx_list[i]<<"===\n";
+        {   
             //device->deleteOutdatedEvents(idx_list[i], start_time);
-            llvm::outs()<<device->events.size()<<"===\n";
             auto e = device->events[idx_list[i++]];
             if(!e.empty()){
                 start.push_back( (e.end()-1)->second );
             }
         }
-        llvm::outs()<<"hello\n";
         
         uint64_t start_t = *std::max_element(start.begin(), start.end());
         
-        llvm::outs()<<start_t<<"\n";
         events[idx].push_back(std::make_pair(start_t, exec_time+start_t));
         i = 0;
         for( auto device : dlist )
@@ -155,7 +154,7 @@ struct DMA : public Device{
     int warmup_cycles;//bus grant, bus request
     //double transfer_rate_growth;//growth rate of rate
     //int saturated_volume;
-    DMA(uint64_t id) : mode(BURST_MODE), transfer_rate(10 KB), warmup_cycles(2), Device(id, 1) {}
+    DMA(uint64_t id) : mode(BURST_MODE), transfer_rate(10 KB), warmup_cycles(0), Device(id, 1) {}
     int getTransferCycles(int volume){
         return warmup_cycles + ceil(volume/transfer_rate);
     }
@@ -205,13 +204,15 @@ struct Memory : public Device {
             return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)write_ports)*cycles;
     }
 };
+
+//1:10:100 is the usual estimate
 struct RegisterFile : public Memory {
    RegisterFile(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 64 Byte, dlines, dtype_bit, 
         0, 0) {}
 };
 struct SRAM : public Memory {
    SRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 10 KB, dlines, dtype_bit, 
-        10, 2) {}
+        10, 0) {}
 };
 struct DRAM : public Memory {
    DRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 512 MB, dlines, dtype_bit, 

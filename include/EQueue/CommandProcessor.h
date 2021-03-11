@@ -22,7 +22,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-
+#include <assert.h>
 #include <ostream>
 #include <string>
 

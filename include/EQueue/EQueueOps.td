@@ -398,8 +398,8 @@ def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
       return getOperand(0);
     };
     Value getConnection(){
-      if(getNumOperands()>=3){
-        return getOperand(2);
+      if(getNumOperands()>=2){
+        return getOperand(1);
       }
       return Value();
     };
@@ -685,7 +685,7 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
     " int64_t src_bank, int64_t dest_bank"
 	>
 	];
-  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, I32: $connection, OptionalAttr<I64ElementsAttr>: $size,
+  let arguments = (ins EQueue_SignalType: $start, AnyMemRef: $src_buffer, AnyMemRef: $dest_buffer, I32:$dma, Optional<I32>: $connection, OptionalAttr<I64ElementsAttr>: $size,
   OptionalAttr<I64Attr>: $src_bank, OptionalAttr<I64Attr>: $dest_bank);
   let results = (outs EQueue_SignalType: $done);
   let extraClassDeclaration = [{
@@ -707,7 +707,10 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
       return getOperand(2);
     };
     Value getConnection(){
-      return getOperand(4);
+      if(getNumOperands()>=5){
+        return getOperand(4);
+      }
+      return Value();
     };
     int getDlines(MemAllocOp srcAllocOp, MemAllocOp destAllocOp){
 		  auto size = getAttr("size");
