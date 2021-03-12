@@ -34,7 +34,7 @@ using namespace mlir::equeue;
 #define DEBUG_TYPE "affine-loop-tile"
 
 namespace {
-
+// ./bin/equeue-opt --loop-tile="tile-sizes=1,1,1,1,5,1,1" ../test/LoweringPipeline/affine.mlir
 /// A pass to perform loop tiling on all suitable loop nests of a Function.
 struct MyLoopTiling : public PassWrapper<MyLoopTiling, FunctionPass>  {
   

@@ -42,7 +42,7 @@ namespace {
 
 ///./bin/equeue-opt ../test/LoweringPipeline/affine_tile.mlir -allocate-mem="structs-names=pe_array@mem indices=0 mem-names=ibuffer sizes=1"
 ///  ./bin/equeue-opt ../test/LoweringPipeline/affine_tile.mlir -allocate-mem="structs-names=mem,pe_array@mem indices=0,0 mem-names=ibuffer,pe_ibuffer sizes=49,1"  > ../test/LoweringPipeline/allocate_ibuffer.mlir
-
+/// ./bin/equeue-opt ../test/LoweringPipeline/allocate_ibuffer.mlir -allocate-mem="structs-names=mem,pe_array@mem indices=0,0 mem-names=wbuffer,pe_wbuffer sizes=25,1"
 
 struct AllocateMemory : public PassWrapper<AllocateMemory, FunctionPass>  {
 

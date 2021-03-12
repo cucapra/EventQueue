@@ -126,8 +126,6 @@ int getMemVolume(mlir::Value shapedValue){
 uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t> &mem_tids)//, OpEntry &c)
 {
   LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op: "<<to_string(op)<<"\n");
-  //mlir::Operation *op = c.op;
-  LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op: "<<*op<<"\n");
   uint64_t execution_time = 1;
   if (auto Op = mlir::dyn_cast<xilinx::equeue::CreateMemOp>(op)) {
     auto shape = Op.getShape();

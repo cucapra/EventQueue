@@ -16,10 +16,10 @@
 module {
   func @graph(%arg0: memref<7x7xf32>, %arg1: memref<5x5xf32>, %arg2: memref<3x3xf32>) {
     %0 = "equeue.create_proc"() {type = "AIEngine"} : () -> i32
-    %1 = "equeue.create_mem"() {banks = 1 : i64, data = "f32", shape = dense<11> : tensor<1xi64>, type = "RegisterFile"} : () -> i32
+    %1 = "equeue.create_mem"() {banks = 1 : i64, data_bit = 32 : i64, shape = dense<11> : tensor<1xi64>, type = "RegisterFile"} : () -> i32
     %2 = "equeue.create_comp_field"(%0, %1) {names = "proc mem "} : (i32, i32) -> i32
     %3 = splat %2 : vector<5xi32>
-    %4 = "equeue.create_mem"() {banks = 16 : i64, data = "f32", shape = dense<1024> : tensor<1xi64>, type = "SRAM"} : () -> i32
+    %4 = "equeue.create_mem"() {banks = 16 : i64, data_bit = 32 : i64, shape = dense<1024> : tensor<1xi64>, type = "SRAM"} : () -> i32
     %5 = "equeue.create_dma"() : () -> i32
     %6 = "equeue.create_proc"() {type = "MicroPlate"} : () -> i32
     %7 = "equeue.create_comp_field"(%3, %6, %4, %5) {names = "pe_array proc mem dma "} : (vector<5xi32>, i32, i32, i32) -> i32
@@ -30,11 +30,11 @@ module {
       affine.for %arg7 = 0 to 5 {
         %18 = extract_element %9[%arg7] : vector<5xi32>
         %19 = "equeue.get_comp_field"(%18) {name = "mem"} : (i32) -> i32
-        %20 = "equeue.alloc"(%19) {data = "f32", shape = dense<1> : tensor<1xi64>} : (i32) -> memref<1xf32>
+        %20 = "equeue.alloc"(%19) {data_bit = 32 : i64, shape = dense<1> : tensor<1xi64>} : (i32) -> memref<1xf32>
         "equeue.add_comp_field"(%18, %20) {names = "pe_ibuffer"} : (i32, memref<1xf32>) -> ()
       }
       %10 = "equeue.get_comp_field"(%arg3) {name = "mem"} : (i32) -> i32
-      %11 = "equeue.alloc"(%10) {data = "f32", shape = dense<49> : tensor<1xi64>} : (i32) -> memref<49xf32>
+      %11 = "equeue.alloc"(%10) {data_bit = 32 : i64, shape = dense<49> : tensor<1xi64>} : (i32) -> memref<49xf32>
       "equeue.add_comp_field"(%arg3, %11) {names = "ibuffer"} : (i32, memref<49xf32>) -> ()
       %12 = linalg.reshape %arg4 [#map2, #map3] : memref<7x7xf32> into memref<1x7x7x1xf32>
       %13 = linalg.reshape %arg5 [#map4, #map5] : memref<5x5xf32> into memref<5x5x1x1xf32>

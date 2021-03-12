@@ -47,6 +47,11 @@ static llvm::cl::opt<bool> generateInputFile(
     llvm::cl::desc("generate the input file"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> simulateInputFile(
+    "simulate",
+    llvm::cl::desc("simulate the input file"),
+    llvm::cl::init(false));
+    
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
@@ -166,7 +171,8 @@ int main(int argc, char **argv) {
       }
     }
     //generator.firSingleKernel();
-    generator.scaleSimGenerator();
+    //generator.scaleSimGenerator();
+    generator.linalgGenerator3();
   }
   else{
     // Set up the input file.
@@ -175,23 +181,24 @@ int main(int argc, char **argv) {
       llvm::errs() << errorMessage << "\n";
       return 1;
     }
-    //output->os()
-    if (failed(MlirOptMain(llvm::nulls(), std::move(file), passPipeline,
+    //output->os()//llvm::nulls()
+    if (failed(MlirOptMain(llvm::outs(), std::move(file), passPipeline,
                            splitInputFile, verifyDiagnostics, verifyPasses,
                            allowUnregisteredDialects))) {
       return 1;
     }
 	  
-    auto module = loadFileAndProcessModule(context);
     
-    
-	  std::string json_fn;
-	  if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
-	  std::ofstream json_fp(json_fn);
-	  std::stringstream traceStream;
-	  acdc::CommandProcessor proc(traceStream);
-	  proc.run(module.get());
-    json_fp << traceStream.str();
+    if(generateInputFile){
+      auto module = loadFileAndProcessModule(context);
+	    std::string json_fn;
+	    if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
+	    std::ofstream json_fp(json_fn);
+	    std::stringstream traceStream;
+	    acdc::CommandProcessor proc(traceStream);
+	    proc.run(module.get());
+      json_fp << traceStream.str();
+    }
   }
   
 

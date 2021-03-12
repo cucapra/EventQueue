@@ -84,6 +84,12 @@ The parameters are:
 
 **indices**: indices of regions to allocate buffers in pre-order, separated by comma.
 
+### Loop Removing Pass
+
+ This pass removes extra loops where the loop upper bound is 1. 
+
+No parameter.
+
 
 
 

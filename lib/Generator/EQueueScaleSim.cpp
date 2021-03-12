@@ -33,7 +33,7 @@ void MLIRGenImpl::scaleSimGenerator(){
   for(int i = 0; i < accel_config.array_height; i++){
     for(int j = 0; j < accel_config.array_width; j++){
       proc = create_proc("AIEngine");
-      mem = create_mem(ArrayRef<int64_t>{ 4 }, 32, "RegisterFile");
+      mem = create_mem(ArrayRef<int64_t>{ 4 }, 32, "RegisterFile", 3);
       if(i==0&&j==0) {
         comp = create_comp(ArrayRef<std::string>{"mem", "proc"}, ValueRange{mem, proc}) ;
       } else {
@@ -496,7 +496,7 @@ void MLIRGenImpl::scaleSimGenerator(){
               Value num;
               for(int i = 0; i < e2 + accel_config.array_width + accel_config.array_height; i++){
                 Value compute_signal, prev_compute_signal;
-                int num = min(i, accel_config.array_height);
+                /*int num = min(i, accel_config.array_height);
                 if (i > e2 + accel_config.array_height){
                     num = 0;
                   }
@@ -512,11 +512,10 @@ void MLIRGenImpl::scaleSimGenerator(){
                     prev_weight_cpy = control_and(ValueRange{prev_weight_cpy, weight_cpy});
                   }
                 }
-                await_op(ValueRange{prev_input_cpy});
+                await_op(ValueRange{prev_input_cpy});*/
                 //---------------------------------
                 // read out current values in PE
                 //---------------------------------
-                
                 Value start_compute_signal = start_op();
                 SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, ofmap_flight;
                 for(int r = 0; r < row_this_fold; r++){//par_for
@@ -791,34 +790,27 @@ void MLIRGenImpl::scaleSimGenerator(){
                     prev_filter_cpy = control_and(ValueRange{prev_filter_cpy, filter_cpy});
                   }
                 }
-                await_op(ValueRange{prev_filter_cpy});
+                if(t==row_this_fold - 1){
+                  Value memcpy_signal, prev_memcpy_signal;
+                  for(int r = 0; r < row_this_fold; r++){//par_for
+                    memcpy_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
+                    if(r==0){
+                      prev_memcpy_signal = memcpy_signal;
+                    } else {
+                      prev_memcpy_signal = control_and(ValueRange{prev_memcpy_signal, memcpy_signal});
+                    }
+                  }
+                  await_op(ValueRange{prev_filter_cpy, prev_memcpy_signal});
+                }else{
+                  await_op(ValueRange{prev_filter_cpy});
+                }
+                //await_op(ValueRange{prev_filter_cpy});
               }
                   
               
               for(int t = 0; t < e2+row_this_fold+col_this_fold; t++){//seq_for
               //one parallel cycle
                 Value compute_signal, prev_compute_signal;
-                //memcpy should not take cycles, not sure how to deal with this
-                /*
-                // copy from sram to pe (ibuffer)
-                start_cpy = start_op();
-                //for(int c = 0 ; c < col_this_fold; c++){//par_for
-                if (t == 0) {
-                  for(int r = 0; r < row_this_fold; r++){//par_for
-                    compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], r, 0);
-                    if(r==0){
-                      prev_compute_signal = compute_signal;
-                    } else {
-                      prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
-                    }
-                  }
-                } else if (t < e2) {
-                  prev_compute_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[0][0], dma_rows[0], ArrayRef<int64_t>{1}, 0, 0);
-                } else {
-                  prev_compute_signal = start_cpy;
-                }
-                await_op(ValueRange{prev_compute_signal});
-                */
                 //pe runs
                 Value start_compute_signal = start_op();
                 SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, ofmap_flight;
@@ -850,7 +842,12 @@ void MLIRGenImpl::scaleSimGenerator(){
                   ifmap_flight.push_back(ifmap_flight_line);
                   ofmap_flight.push_back(ofmap_flight_line);
                 }
-                await_op(ValueRange{prev_compute_signal});
+                if (t < e2-1) {
+                  await_op(ValueRange{ prev_compute_signal, memcpy_op(start_compute_signal, ibuffer, ibuffer2s[0][0], dma_rows[0], ArrayRef<int64_t>{1}, 0, 0) } );
+                } else {
+                  await_op(ValueRange{prev_compute_signal});
+                }
+                //await_op(ValueRange{prev_compute_signal});
                 start_compute_signal = start_op();
                 for(int r = 0; r < row_this_fold; r++){//par_for
                   for(int c = 0 ; c < col_this_fold; c++){//par_for
@@ -919,14 +916,17 @@ void MLIRGenImpl::scaleSimGenerator(){
                         return_op(ValueRange{});
                       })[0];
                     }
+
                     if(c==0 && r==0){
                       prev_compute_signal = compute_signal;
                     } else {
                       prev_compute_signal = control_and(ValueRange{prev_compute_signal, compute_signal});
                     }
                   }
-                }
+                }//end parallel for
                 await_op(ValueRange{prev_compute_signal});
+                                
+                
               }
             }
           }
