@@ -86,7 +86,8 @@ struct GenericStructure {
 
   GenericStructure()=default; 
   void buildIdMap(mlir::FuncOp &toplevel);
-  ValueRange getField(OpBuilder builder, Region *region, unsigned idx, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent );
+  Value getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent );
+  Value getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value original_parent );
   //void runOnFunction() override;
 
   llvm::DenseMap<mlir::Value, mlir::Value> valueIds;

@@ -58,19 +58,21 @@ using namespace mlir::edsc::ops;
 using namespace xilinx::equeue;
 
 
-static mlir::Operation* walkRegions(MutableArrayRef<Region> regions) {
+static mlir::Operation* walkRegions(MutableArrayRef<Region> regions, Operation *op=nullptr, bool isAfter=true) {
   for (Region &region : regions){
    
     for (Block &block : region) {
       for (Operation &operation : block){
-        // llvm::outs() << operation << "\n";
-        if (isa<mlir::AffineForOp>(operation)){
+        if(op && &operation == op){
+          isAfter = true;
+        }
+        else if (isa<mlir::AffineForOp>(operation) && isAfter){
           return &operation;
         }
-        mlir::Operation* sub_op_res = walkRegions(operation.getRegions());
-         if (sub_op_res != nullptr){
+        mlir::Operation* sub_op_res = walkRegions(operation.getRegions(), op, isAfter);
+        if (sub_op_res != nullptr){
            return sub_op_res;
-         }
+        }
       }
     }
   }
@@ -80,59 +82,6 @@ static mlir::Operation* walkRegions(MutableArrayRef<Region> regions) {
 
 namespace
 {
-    // struct ForOpConversion : public OpRewritePattern<mlir::AffineForOp>
-    // {
-    //     using OpRewritePattern<mlir::AffineForOp>::OpRewritePattern;
-    //     // Region *inline_region;
-    //     ForOpConversion(MLIRContext *context) : OpRewritePattern<mlir::AffineForOp>(context){}
-
-    //     LogicalResult matchAndRewrite(mlir::AffineForOp op,
-    //                                   PatternRewriter &rewriter) const override
-    //     {
-    //         //auto region = op.region();
-    //         llvm::outs() << *op << "\n";
-    //         //rewriter.inlineRegionBefore(region2, launch_pe->region(), launch_pe->region.end());
-    //         //} */
-    //         auto new_op = op.clone();
-    //         bool const_bound = op.hasConstantLowerBound() && op.hasConstantUpperBound();
-    //         // next
-    //         if (!const_bound  || op.getConstantUpperBound() - op.getConstantLowerBound() > op.getStep()){
-    //             llvm::outs() << "hello" << "\n";
-    //             return failure();
-    //         }else {
-                    
-    //         auto loc = op.getLoc();
-    //         auto parent = op.getParentOp();
-    //         Value zero = rewriter.create<ConstantIndexOp>(loc, 0);
-    //         // op.getInductionVar().replaceAllUsesWith(zero);
-    //         // llvm::outs() << *op.getParentOp()  << "\n";
-    //         // rewriter.cloneRegionBefore(op.getRegion(), *(op.getParentRegion()), op.getParentRegion()->end());
-    //         // for (auto &sub_op: op.getRegion().getOps()){
-    //         //     sub_op.moveBefore(op);
-    //         // }
-    //         auto subOps = op.getRegion().getOps<AffineForOp>();
-    //         mlir::AffineForOp affineFor;
-    //         for (auto af : subOps){
-    //             if (!affineFor):
-    //                 affineFor = af;
-    //                 break;
-    //         }
-            
-    //         mlir::Operation new_op = affineFor.clone();
-
-    //         // for (auto &line: parent->getRegion(0).back()){
-    //         //     llvm::outs() << line << "\n";
-    //         //     line.moveBefore(op);
-    //         // }
-    //         // parent->getRegion(0).back().erase();
-    //         rewriter.replaceOp(op, new_op.getResults());
-    //         // llvm::outs() << *parent << "\n";
-
-    //         }
-
-    //         return success();        
-    //     }
-    // };
 
     struct LoopRemovingPass : public PassWrapper<LoopRemovingPass, FunctionPass>
     {
@@ -148,10 +97,21 @@ namespace
             OpBuilder builder(&getContext());
             std::vector<mlir::AffineForOp> affineFors;
             MutableArrayRef<Region> regions = f.getRegion();
-
-            auto operation = walkRegions(regions);
+            SmallVector<Operation *, 6> bands;
+            for (xilinx::equeue::LaunchOp launchop: f.getOps<xilinx::equeue::LaunchOp>()){
+              for (Operation &op : launchop.getOps()) {
+                if (isa<mlir::AffineForOp>(&op)){
+                    bands.push_back(&op);
+                    //llvm::outs()<<op<<"\n";
+                  }
+              }
+            }
+            //llvm::outs()<<"========\n";
+            int i = 1;
+  
+            auto operation = bands[0];
             while (operation != nullptr) {
-                llvm::outs()<< *operation << "\n"; 
+                //llvm::outs()<< *operation << "\n"; 
                 mlir::AffineForOp op = dyn_cast<mlir::AffineForOp>(operation);
 
                 // if condition not met, go into its region
@@ -176,10 +136,10 @@ namespace
                       SmallVector<Attribute, 1> result;
                       map.constantFold({value_attr}, result);
                       auto res = result[0].cast<IntegerAttr>().getInt();
-                      llvm::outs() << res << "\n";
+                      //llvm::outs() << res << "\n";
                       ub_value = res;
                   }else{
-                    llvm::outs() << "continued at upper bound" << "\n";
+                    //llvm::outs() << "continued at upper bound" << "\n";
                     operation = walkRegions(operation->getRegions());
                     continue;
                   }
@@ -197,9 +157,9 @@ namespace
                         map.constantFold({value_attr}, result);
                         auto res = result[0].cast<IntegerAttr>().getInt();
                         lb_value = res;
-                        llvm::outs() << res << "\n";
+                        //llvm::outs() << res << "\n";
                   }else{
-                      llvm::outs() << "continued at lb bound" << "\n";
+                    //llvm::outs() << "continued at lb bound" << "\n";
                     operation = walkRegions(operation->getRegions());
                     continue;
                   }
@@ -208,19 +168,26 @@ namespace
                
                 if (ub_value - lb_value > op.getStep()){
                     // llvm::outs() << "hello" << "\n";
-                    llvm::outs() << "condition not meet, continue" << "\n";
+                    //llvm::outs() << "condition not meet, continue" << "\n";
                     operation = walkRegions(operation->getRegions());
+                    if(operation ==nullptr && i < bands.size() ){
+                      operation = bands[i];
+                      i++;
+                      //llvm::outs()<<i<<" "<<bands.size()<<"\n";
+                    }
+                    //llvm::outs()<<operation<<"\n";
                     continue;
                 }   
               
-                llvm::outs() << "can be removed" << "\n";
+                //llvm::outs() << "can be removed" << "\n";
 
                 auto parent = op.getParentOp();
                 // auto blk = parent->getRegion(0).front();
                 ScopedContext scope(builder, parent->getLoc());
                 auto loc = op.getLoc();
                 // Value zero = builder.create<ConstantIndexOp>(loc, 0);
-                builder.setInsertionPointToStart(&op.getRegion().front());
+                //builder.setInsertionPointToStart(&op.getRegion().front());
+                builder.setInsertionPoint(op);
                 Value lb_index = std_constant_index(lb_value);
                 op.getInductionVar().replaceAllUsesWith(lb_index);
                 auto counter = 0;
@@ -235,10 +202,12 @@ namespace
                     }
                     counter ++;
                 }
+                op.erase();
                 // op.getRegion().cloneInto()
                 regions = parent->getRegions();
-                op.erase();
-                operation = walkRegions(regions);          
+                operation = walkRegions(regions, lb_index.getDefiningOp(), false);   
+                //if(operation) llvm::outs()<<"===="<<*operation<<"\n";       
+                //llvm::outs()<<"parent: "<<*parent<<"\n";
             }
         }
         

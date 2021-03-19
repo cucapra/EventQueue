@@ -23,6 +23,9 @@ void registerParallelizePass();
 void registerAllocatePass();
 void registerMemCopyPass();
 void registerLoopRemovingPass();
+void registerAddLoopPass();
+void registerSystolicArrayPass();
+void registerEqueueReadWritePass();
 /// Generate the code for registering passes.
 }
 } // end namespace mlir

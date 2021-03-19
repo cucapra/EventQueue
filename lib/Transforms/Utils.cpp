@@ -69,25 +69,66 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
 
 
 
-ValueRange GenericStructure::getField(OpBuilder builder, Region *region, unsigned idx, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent){
+Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent){
   ScopedContext scope(builder, region->getLoc());
-  
-  Value new_original_parent = comps_tree[original_parent][structs[j]];
+  std::size_t start = structs[j].find("[");
+  std::size_t end = structs[j].find("]");
+  std::string structure;
+  if (start!=std::string::npos){
+    assert(end!=std::string::npos && end > start);
+    structure = structs[j].substr(0, start);
+  }else{
+    structure = structs[j];
+  }
+  Value new_original_parent = comps_tree[original_parent][structure];
   auto original_type = new_original_parent.getType();
-  Value new_parent = get_comp(parent, structs[j], original_type);
+  Value new_parent = get_comp(parent, structure, original_type);
   if(auto vector_type = original_type.dyn_cast<VectorType>()){//vector
+    
     new_original_parent = new_original_parent.getDefiningOp()->getOperand(0);
-    Value ivs = cast<AffineForOp>(new_parent.getParentRegion()->getParentOp()).getInductionVar();
-    new_parent = std_extract_element(new_parent, ivs);
+    Value index;
+    if(start==std::string::npos){
+      if( isa<AffineForOp>(new_parent.getParentRegion()->getParentOp()) ){
+        index = cast<AffineForOp>(new_parent.getParentRegion()->getParentOp()).getInductionVar();
+      }else{
+        index = cast<AffineParallelOp>(new_parent.getParentRegion()->getParentOp()).getIVs()[0];
+      }
+    }else{
+      index = std_constant_index(stoi(structs[j].substr(start+1,end-1)));
+    }
+    new_parent = std_extract_element(new_parent, index);
   }
   if(j!=structs.size()-1){
-    return getField(builder, region, idx, structs, j+1, new_parent, new_original_parent);
+    return getField(builder, region, structs, j+1, new_parent, new_original_parent);
   }else{
-    return ValueRange{new_parent, new_original_parent, parent, original_parent};
+    return new_parent;//ArrayRef<Value>({new_parent, new_original_parent, parent, original_parent});
   }
 }
 
 
+Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value original_parent){
+  ScopedContext scope(builder, region->getLoc());
+  std::size_t start = structs[j].find("[");
+  std::size_t end = structs[j].find("]");
+  std::string structure;
+  if (start!=std::string::npos){
+    assert(end!=std::string::npos && end > start);
+    structure = structs[j].substr(0, start);
+  }else{
+    structure = structs[j];
+  }
+  Value new_original_parent = comps_tree[original_parent][structure];
+  auto original_type = new_original_parent.getType();
+
+  if(auto vector_type = original_type.dyn_cast<VectorType>()){//vector
+    new_original_parent = new_original_parent.getDefiningOp()->getOperand(0);
+  }
+  if(j!=structs.size()-1){
+    return getField(builder, region, structs, j+1, new_original_parent);
+  }else{
+    return new_original_parent;//ArrayRef<Value>({new_parent, new_original_parent, parent, original_parent});
+  }
+}
 
 
 

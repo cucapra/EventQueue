@@ -312,7 +312,9 @@ void MemReadOp::build(Builder builder, OperationState &result, Value buffer, Val
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
 
   auto memrefType = buffer.getType().cast<MemRefType>();
-  if(size!=ArrayRef<int64_t>{}){
+  if(size==ArrayRef<int64_t>{1}){
+    result.types.push_back(memrefType.getElementType());
+  }else if(size!=ArrayRef<int64_t>{}){
 	  result.types.push_back(RankedTensorType::get(memrefType.getShape(), memrefType.getElementType()));
 	}else{
 	  result.types.push_back(RankedTensorType::get(size, memrefType.getElementType()));
@@ -328,7 +330,9 @@ void MemReadOp::build(Builder builder, OperationState &result, Value buffer, Arr
 	result.addAttribute("bank", builder.getI64IntegerAttr(bank));
 
   auto memrefType = buffer.getType().cast<MemRefType>();
-  if(size!=ArrayRef<int64_t>{}){
+  if(size==ArrayRef<int64_t>{1}){
+    result.types.push_back(memrefType.getElementType());
+  }else if(size!=ArrayRef<int64_t>{}){
 	  result.types.push_back(RankedTensorType::get(memrefType.getShape(), memrefType.getElementType()));
 	}else{
 	  result.types.push_back(RankedTensorType::get(size, memrefType.getElementType()));

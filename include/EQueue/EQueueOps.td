@@ -232,7 +232,7 @@ def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [NoSideEffect, Structur
 	}];
 }
 
-def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [NoSideEffect, StructureOpTrait]> {
+def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [StructureOpTrait]> {
   let summary = "Add sub-coponents to existing component.";
   let description = [{
     The operation takes a component reference and a variable number of operands representing component handlers.

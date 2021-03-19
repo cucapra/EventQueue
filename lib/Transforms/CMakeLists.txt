@@ -5,6 +5,9 @@ add_mlir_dialect_library(EQueueTransforms
   MyLoopParallelize.cpp
   AllocateMem.cpp
   MemCopy.cpp
+  AddLoop.cpp
+  SystolicArray.cpp
+  EqueueReadWrite.cpp
   Utils.cpp
   
   ADDITIONAL_HEADER_DIRS
