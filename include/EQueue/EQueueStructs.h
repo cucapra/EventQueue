@@ -40,6 +40,8 @@ namespace equeue {
 #define MB *1024 KB
 #define GB *1024 MB
 
+enum class MemOp { Read, Write };
+
 struct Device {
     //unique id
     uint64_t uid;
@@ -139,12 +141,80 @@ struct Device {
 
 struct Connection : public Device{
     int bandwidth;
-    int data_total;//what to do when data_total is negative
+    std::map<uint64_t, int> write_schedule;
+    int data_total;
     Connection(uint64_t id, int bandwid) : Device(id, 1) {
         bandwidth = bandwid;
+        data_total = 0;
     }
     uint64_t getReadOrWriteCycles(int bits){
-        return ceil( (float)bits/bandwidth);
+
+        return floor( (float)bits/bandwidth);
+    }
+    bool scheduleTransmission(uint64_t cycle, int bits, MemOp op){
+
+      if(op == MemOp::Write){
+        data_total+=bits;
+        if(!write_schedule.empty()){
+          auto start_time = write_schedule.rbegin()->first;
+          cycle = std::max({cycle, start_time+getReadOrWriteCycles(bits)});
+        }
+        write_schedule.insert({cycle, bits});
+        llvm::outs()<<"-----write-------\n";
+        for(auto iter = write_schedule.begin(); iter!=write_schedule.end(); iter++){
+          llvm::outs()<<iter->first<<" "<<iter->second<<"\n\n";
+        }
+        return true;
+      }else{
+
+        if(write_schedule.empty()) return false;
+        auto iter = write_schedule.begin();
+        int vol = 0;
+        for(; iter!=write_schedule.end(); iter++){
+          vol+=iter->second;
+          if(vol >= bits) break;
+        }
+        if(iter==write_schedule.end()) return false;
+        
+        
+        auto prev_vol = vol-iter->second;
+        //prev_time + getCycle(bits - prev_vol)
+        auto required_cycle = iter->first + getReadOrWriteCycles(bits - prev_vol);
+        if(required_cycle > cycle) return false;
+        write_schedule.erase(write_schedule.begin(), ++iter);//[ , )
+        if(vol!=bits) write_schedule.insert({required_cycle, vol-bits});
+        /*
+        //if iter==write_schedule.begin(), vol=0, write hasn't happen, we should return false
+        //if iter==write_schedule.end(), vol = maxium vol it can get, while some write hasn't happen,
+        //we should return false
+        llvm::outs()<<"-------"<<vol<<" "<<bits<<"    \n";
+        if(vol < bits) return false;
+        //vol = maxium vol it can get, while some write might haven't happen
+        //it depends on the time
+        auto last_it = iter;
+        iter--;
+        //prev cycle + amount of data/bandwidth = cycle required to get # bits
+        auto required_cycle = iter->first + getReadOrWriteCycles(bits);
+        llvm::outs()<<"-------"<<cycle<<" "<<required_cycle<<"    \n";
+        if ( required_cycle > cycle){
+          return false;
+        }
+        llvm::outs()<<vol-bits<<"\n";
+        //the last write_schedule ->first may <= cycle
+        //but it perfectly fall into iter = write_schedule.end() and this code still works
+        write_schedule.erase(write_schedule.begin(), last_it);
+        llvm::outs()<<vol<<" "<<bits<<"-------\n";
+        if(vol!=bits) write_schedule.insert({required_cycle, vol-bits});
+        for(iter = write_schedule.begin(); iter!=write_schedule.end(); iter++){
+          llvm::outs()<<iter->first<<" "<<iter->second<<"\n\n";
+        }*/
+        return true;
+      }
+    }
+
+    uint64_t getBandwidth(uint64_t cycles){
+      if(cycles == 0) return 0;
+      return data_total/cycles;
     }
 };
 
@@ -164,7 +234,6 @@ constexpr unsigned int hash(const char *s, int off = 0) {
     return !s[off] ? 5381 : (hash(s, off+1)*33) ^ s[off];                           
 }    
 
-enum class MemOp { Read, Write };
 
 struct Memory : public Device {
     int banks;

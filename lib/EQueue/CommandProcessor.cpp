@@ -123,7 +123,7 @@ int getMemVolume(mlir::Value shapedValue){
   return dlines;
 }
 
-uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t> &mem_tids)//, OpEntry &c)
+int modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t> &mem_tids)//, OpEntry &c)
 {
   LLVM_DEBUG(llvm::dbgs()<<"[modelOp] start model op: "<<to_string(op)<<"\n");
   uint64_t execution_time = 1;
@@ -173,11 +173,12 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     if(Op.getConnection()!=Value()){
       Value connection = valueIds[Op.getConnection()];
       auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
-      execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
-      con->scheduleEvent(0, time, execution_time, {idx}, {mem});
-    }else{
-      mem->scheduleEvent(idx, time, execution_time, true);
+      //execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
+      //connection_tids.insert(std::make_pair(con->uid, con->getBandwidth(time+execution_time-1)));
+      //con->guardRead(time, vol);
+      if(!con->scheduleTransmission(time, vol, xilinx::equeue::MemOp::Read)) return -1;    
     }
+    mem->scheduleEvent(idx, time, execution_time, true);
     return time;
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemWriteOp>(op)) {
@@ -185,6 +186,7 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     auto allocOp = buffer.getDefiningOp<xilinx::equeue::MemAllocOp>();
     int dlines = Op.getDlines(allocOp);
     int vol = Op.getVol(allocOp);
+    llvm::outs()<<"<< "<<vol<<"\n";
     
     auto key = getAllocDevice(buffer);
     auto mem = static_cast<xilinx::equeue::Memory *>(deviceMap[key].get());
@@ -192,15 +194,17 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     execution_time = mem->getReadOrWriteCycles(vol, dlines, xilinx::equeue::MemOp::Write);
     int idx = Op.getBank();
     
-    
     if(Op.getConnection()!=Value()){
       Value connection = valueIds[Op.getConnection()];
       auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
-      execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
-      con->scheduleEvent(0, time, execution_time, {idx}, {mem});
-    }else{
-      mem->scheduleEvent(idx, time, execution_time, true);
+      llvm::outs()<<"=============="<<vol<<","<<con->getReadOrWriteCycles(vol)<<"===========\n";
+      //execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
+      //llvm::outs()<<execution_time<<"\n";
+      //TODO: work on this
+      //connection_tids.insert(std::make_pair(con->uid, con->getBandwidth(time+execution_time-1)));
+      con->scheduleTransmission(time, vol, xilinx::equeue::MemOp::Write);
     }
+    mem->scheduleEvent(idx, time, execution_time, true);
     return time;
   }
   else if (auto Op = mlir::dyn_cast<xilinx::equeue::MemCopyOp>(op)) {
@@ -235,15 +239,16 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
     int src_idx = Op.getSrcBank();
     int dest_idx = Op.getDestBank();
     Value connection = valueIds[Op.getConnection()];
-
+    return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {srcMem, destMem});
+    //TODO:: require more thoughts
     if(connection!=Value()){
       auto con = static_cast<xilinx::equeue::Connection *>(deviceMap[connection].get());
-      execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
-      return dma->scheduleEvent(0, time, execution_time, {0, src_idx, dest_idx}, {con, srcMem, destMem});
-    }else{
-      return dma->scheduleEvent(0, time, execution_time, {src_idx, dest_idx}, {srcMem, destMem});
+      //execution_time = std::max({execution_time, con->getReadOrWriteCycles(vol)});
+      //connection_tids.insert(std::make_pair(con->uid, con->getBandwidth(time+execution_time-1)));
+      //con->scheduleTransmission(time, vol, xilinx::equeue::MemOp::Write);
     }
   }
+  //TODO: generic op for lastest modeling && intrinsics
   else if (auto Op = mlir::dyn_cast<mlir::linalg::GenericOp>(op)) {
     //TODO: connection not modeled here
     auto cur_time = time;
@@ -298,7 +303,14 @@ uint64_t modelOp(const uint64_t &time, mlir::Operation *op, std::vector<uint64_t
 }
 
 std::string to_string(Operation *op) {
-  return op ? op->getName().getStringRef().str() : "nop";
+  if(op){
+    if(auto Op = dyn_cast<xilinx::equeue::UnkownOp>(op)){
+      return Op.getOpName().str();
+    }else{
+      return op->getName().getStringRef().str();
+    }
+  }
+  return "nop";
 }
 
 std::string to_string(OpEntry &c) {
@@ -378,7 +390,7 @@ void finishOp(LauncherTable &l, uint64_t time, uint64_t pid)
           auto key = c.op->getResult(0);
           LauncherTable l;
           if( auto dma_op = mlir::dyn_cast<xilinx::equeue::CreateDMAOp>(c.op) ){
-            l.name = "";//dma_op.getName().str();
+            l.name = "dma";//dma_op.getName().str();
           } else if ( auto proc_op = mlir::dyn_cast<xilinx::equeue::CreateProcOp>(c.op)){
             l.name = "";//proc_op.getName().str();
           }
@@ -425,7 +437,6 @@ void scheduleOp(LauncherTable &l, uint64_t time, uint64_t pid)
 
   if( auto Op = llvm::dyn_cast<xilinx::equeue::AwaitOp>(c_next.op) ){
     LLVM_DEBUG(llvm::dbgs()<<"[schedule] await op\n");
-    llvm::outs()<<"[schedule] await op\n";
     if(waitForSignal(c_next.op))
       return;
   }
@@ -439,9 +450,12 @@ void scheduleOp(LauncherTable &l, uint64_t time, uint64_t pid)
       opMap[c_next.op]++;
     }
     LLVM_DEBUG(llvm::dbgs()<<"[schedule] updated execution\n");
+    llvm::outs()<<"[schedule]"<<to_string(c_next.op)<<"\n";
+    auto end_time = modelOp(time, c_next.op, c_next.mem_tids);
+    if(end_time==-1) return;
     
+    c_next.end_time = end_time;
     c_next.start_time = time;
-    c_next.end_time = modelOp(time, c_next.op, c_next.mem_tids);
 
     if (verbose) {
       llvm::outs()<<"scheduled: '";
@@ -721,8 +735,8 @@ void simulateFunction(mlir::FuncOp &toplevel)
       nextEndTimes(iter->second, next_times);
 		}
     if(!next_times.size()){
-      LLVM_DEBUG(llvm::dbgs()<<"!!!!!!!!WRONG!!!!!!!!!!\n\n");
-      time = time;
+      //LLVM_DEBUG(llvm::dbgs()<<"!!!!!!!!WRONG!!!!!!!!!!\n\n");
+      time = time+1;
     } else {
       time =  *std::min_element(next_times.begin(), next_times.end());
     }

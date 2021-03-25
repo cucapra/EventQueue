@@ -540,9 +540,9 @@ void MLIRGenImpl::linalgGenerator3(){
       Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 3,3 }, 32, f32Type);
       add_comp(accel, ArrayRef<std::string>{"obuffer"}, ValueRange{obuffer});
       
-          auto ifmapType = MemRefType::get({1, 7, 7, 1}, f32Type);
-          auto filterType = MemRefType::get({5, 5, 1, 1}, f32Type);
-          auto ofmapType = MemRefType::get({1, 3, 3, 1}, f32Type);
+          auto ifmapType = MemRefType::get({1, 7, 7, 1}, f32Type);//b,h,w,c
+          auto filterType = MemRefType::get({5, 5, 1, 10}, f32Type);//kh, kw, c, f
+          auto ofmapType = MemRefType::get({1, 3, 3, 10}, f32Type);//b, h, w, f
           AffineExpr p, q, m, n;
           bindDims(builder.getContext(), p, q, m, n);
           SmallVector<linalg::ReassociationExprs, 2> maps = {linalg::ReassociationExprs({p}), linalg::ReassociationExprs({q, m, n})};

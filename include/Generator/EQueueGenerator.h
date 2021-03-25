@@ -150,6 +150,8 @@ public:
   void linalgGenerator3();
   void scaleSimGenerator();
   void firSingleKernel();
+  void fir16Kernel();
+  void fir16LimitedKernel();
   void firMultiKernel();
   
   

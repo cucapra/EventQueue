@@ -25,6 +25,7 @@
 #include <assert.h>
 #include <ostream>
 #include <string>
+#include <map>
 
 namespace acdc {
 
@@ -50,6 +51,7 @@ struct OpEntry{
 
   uint64_t tid;
   std::vector<uint64_t> mem_tids;
+  std::map<uint64_t, uint64_t> connection_tids;
 
   uint64_t start_time;
   uint64_t end_time;

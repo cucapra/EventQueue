@@ -50,7 +50,7 @@ static llvm::cl::opt<bool> generateInputFile(
 static llvm::cl::opt<bool> simulateInputFile(
     "simulate",
     llvm::cl::desc("simulate the input file"),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
     
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -173,9 +173,9 @@ int main(int argc, char **argv) {
         llvm::errs() << "cannot find configration file"<<configFilename.c_str()<<"!\n";
       }
     }
-    //generator.firSingleKernel();
+    generator.firMultiKernel();
     //generator.scaleSimGenerator();
-    generator.linalgGenerator3();
+    //generator.linalgGenerator3();
   }
   else{
     // Set up the input file.
@@ -192,7 +192,7 @@ int main(int argc, char **argv) {
     }
 	  
     
-    if(generateInputFile){
+    if(simulateInputFile){
       auto module = loadFileAndProcessModule(context);
 	    std::string json_fn;
 	    if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
