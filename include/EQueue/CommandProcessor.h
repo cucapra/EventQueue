@@ -29,8 +29,9 @@
 
 namespace acdc {
 
-class CommandProcessor {
+typedef std::pair<mlir::Value, llvm::ArrayRef<int>> Value_t;
 
+class CommandProcessor {
 public:
     CommandProcessor(std::ostream &trace_stream) :
       traceStream(trace_stream), verbose(true)
@@ -64,7 +65,7 @@ struct OpEntry{
   OpEntry() : op(nullptr), tid(0), start_time(0), end_time(0), queue_ready_time(0) {}
 
 };
-#define EVENT_QUEUE_SIZE 200
+#define EVENT_QUEUE_SIZE 20000
 struct LauncherTable {
   bool host = false;
   std::string name = "";

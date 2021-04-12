@@ -5,7 +5,14 @@
 
 
 namespace {
+// add read from i and write to i+1 pass
+// i.e.
+// buffer[i] = get_comp(...)
+// value[i] = read(buffer[i])
+// buffer[i+1] = get_comp()
+// write(value[i], buffer[i+1])
 
+//latter we will add two launch operation and split loop
 
 struct SystolicArrayPass: public PassWrapper<SystolicArrayPass, FunctionPass> {
 

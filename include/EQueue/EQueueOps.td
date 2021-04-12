@@ -44,7 +44,7 @@ def EQueue_CreateMemOpAttr : StrEnumAttr<"CreateMemOpAttr",
 		
 		}
 //structure creation operations
-def EQueue_CreateMemOp : EQueue_Op<"create_mem", [NoSideEffect, StructureOpTrait]> {
+def EQueue_CreateMemOp : EQueue_Op<"create_mem", [StructureOpTrait]> {
   let summary = "Create memeory component.";
   let description = [{
     Creates a memory component of the given memory type, data size and data type, 
@@ -103,7 +103,7 @@ def EQueue_CreateProcOpAttr : StrEnumAttr<"CreateProcOpAttr",
 			let cppNamespace = "xilinx::equeue";
 		}
 
-def EQueue_CreateProcOp : EQueue_Op<"create_proc", [NoSideEffect, StructureOpTrait]> {
+def EQueue_CreateProcOp : EQueue_Op<"create_proc", [StructureOpTrait]> {
   let summary = "Create processor component.";
   let description = [{
     Creates a processor component of the given processor type, 
@@ -137,7 +137,7 @@ def EQueue_ConnectionOpAttr : StrEnumAttr<"ConnectionOpAttr",
 		}
 
 
-def EQueue_ConnectionOp : EQueue_Op<"connection", [NoSideEffect, StructureOpTrait]> {
+def EQueue_ConnectionOp : EQueue_Op<"connection", [StructureOpTrait]> {
   let summary = "Connect components.";
   let description = [{
     Connects components and set bandwidth.
@@ -155,7 +155,7 @@ def EQueue_ConnectionOp : EQueue_Op<"connection", [NoSideEffect, StructureOpTrai
 }
 
 
-def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait]> {
+def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [StructureOpTrait]> {
   let summary = "Create DMA component.";
   let description = [{
     The `equeue.create_dma` operation creates a dma on demands.
@@ -176,7 +176,7 @@ def EQueue_CreateDMAOp : EQueue_Op<"create_dma", [NoSideEffect, StructureOpTrait
 }
 
 
-def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [NoSideEffect, StructureOpTrait]> {
+def EQueue_CreateCompOp : EQueue_Op<"create_comp_field", [StructureOpTrait]> {
   let summary = "Create component with sub-coponents.";
   let description = [{
     The operation takes variable number of operands representing component handlers.
@@ -269,12 +269,26 @@ def EQueue_AddCompOp : EQueue_Op<"add_comp_field", [StructureOpTrait]> {
            std::istream_iterator<std::string>(),
            std::back_inserter(tokens));
       return tokens;
+      /*std::string str = getNames().str();
+      std::vector<std::string> tokens;
+      size_t prev = 0, pos = 0;
+      std::string delim=" ";
+      do
+      {
+          pos = str.find(delim, prev);
+          if (pos == std::string::npos) pos = str.length();
+          std::string token = str.substr(prev, pos-prev);
+          if (!token.empty()) tokens.push_back(token);
+          prev = pos + delim.length();
+      }
+      while (pos < str.length() && prev < str.length());
+      return tokens;*/
 		};
 	}];
 		
 }
 
-def EQueue_GetCompOp : EQueue_Op<"get_comp_field", [NoSideEffect, StructureOpTrait]> {
+def EQueue_GetCompOp : EQueue_Op<"get_comp_field", [StructureOpTrait, NoSideEffect]> {
   let summary = "Get component from a composed component.";
   let description = [{
     The operation takes variable number of operands representing component handlers.
@@ -340,6 +354,13 @@ def EQueue_MemAllocOp: EQueue_Op<"alloc"> {
       SmallVector<int, 8> shape(attr.getValues<int64_t>());
       return shape;
 		};
+		int64_t getDlines(){
+		  int64_t dlines = 1;
+		  for(auto s: getShape()){
+		    dlines *= s;
+		  }
+		  return dlines;
+		}
 		int64_t getDataBit(){
 			return getAttr("data_bit").cast<IntegerAttr>().getInt();
 		};
@@ -372,7 +393,7 @@ def EQueue_MemDeallocOp: EQueue_Op<"dealloc"> {
 	let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
-def EQueue_MemReadOp : EQueue_Op<"read", [NoSideEffect]> {
+def EQueue_MemReadOp : EQueue_Op<"read", []> {
   let summary = "read data from buffer at certain index.";
   let description = [{
     This operation takes in a memory buffer and an offset of variable number.
@@ -509,7 +530,7 @@ def EQueue_MemWriteOp : EQueue_Op<"write"> {
 
 
 //unknown op
-def EQueue_UnkownSpecificationOp : EQueue_Op<"unkSpecOp", [NoSideEffect, StructureOpTrait]> {
+def EQueue_UnkownSpecificationOp : EQueue_Op<"unkSpecOp", [StructureOpTrait]> {
   let summary = "Unknown operation specification.";
   let description = [{
     Unkown operation specification on input/output bits, cycle to compute.
@@ -523,7 +544,7 @@ def EQueue_UnkownSpecificationOp : EQueue_Op<"unkSpecOp", [NoSideEffect, Structu
 
 
 //unknown op
-def EQueue_UnkownOp : EQueue_Op<"unkOp", [NoSideEffect]> {
+def EQueue_UnkownOp : EQueue_Op<"unkOp", []> {
   let summary = "Unknown operation.";
   let description = [{
     Unkown operation with specification.
@@ -617,7 +638,7 @@ def EQueue_LaunchOp : EQueue_Op<"launch", [SingleBlockImplicitTerminator<"Return
 }
 
 def EQueue_ReturnOp: EQueue_Op<"return", 
-		[NoSideEffect, Terminator]>{
+		[Terminator]>{
   let summary = "explicit terminator of  `equeue.launch` launch body";
   let description = [{
     Takes in variable number of operands and passes to `equeue.launch` operation as results.
@@ -758,7 +779,7 @@ def EQueue_MemCopyOp : EQueue_Op<"memcpy", [AsyncOpTrait]> {
 
 
 // signal manupulation
-def EQueue_ControlStartOp : EQueue_Op<"control_start", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
+def EQueue_ControlStartOp : EQueue_Op<"control_start", [ControlOpTrait, AsyncOpTrait]> {
   let summary = "Create a start signal";
   let description = [{
     Returns a immediate done signal. The event takes no time.
@@ -781,7 +802,7 @@ def EQueue_ControlStartOp : EQueue_Op<"control_start", [NoSideEffect, ControlOpT
   let results = (outs EQueue_SignalType: $done);
 }
 
-def EQueue_ControlAndOp : EQueue_Op<"control_and", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
+def EQueue_ControlAndOp : EQueue_Op<"control_and", [ControlOpTrait, AsyncOpTrait]> {
   let summary = "Logical AND for input signals";
   let description = [{
     Takes in variable number of signal operands and returns a done signal when all 
@@ -798,7 +819,7 @@ def EQueue_ControlAndOp : EQueue_Op<"control_and", [NoSideEffect, ControlOpTrait
   let arguments = (ins Variadic<EQueue_SignalType>: $signals);
   let results = (outs EQueue_SignalType: $done);
 }
-def EQueue_ControlOrOp : EQueue_Op<"control_or", [NoSideEffect, ControlOpTrait, AsyncOpTrait]> {
+def EQueue_ControlOrOp : EQueue_Op<"control_or", [ControlOpTrait, AsyncOpTrait]> {
   let summary = "Logical OR for input signals";
   let description = [{
     Takes in variable number of signal operands and returns a done signal when any event 
@@ -816,7 +837,7 @@ def EQueue_ControlOrOp : EQueue_Op<"control_or", [NoSideEffect, ControlOpTrait, 
   let results = (outs EQueue_SignalType: $done);
 }
 //await 
-def EQueue_AwaitOp : EQueue_Op<"await", [NoSideEffect]> {
+def EQueue_AwaitOp : EQueue_Op<"await", []> {
   let summary = "A barrier to communicate asynchronous call and synchronous call";    
   let description = [{
     Takes in variable number of signal operands. 

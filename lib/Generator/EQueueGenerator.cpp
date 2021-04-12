@@ -483,9 +483,16 @@ void MLIRGenImpl::linalgGenerator2(){
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }
-
-
 */
+ void unkOpRegionBuilder(ValueRange args) {
+   //using edsc::op::operator+;
+   //using edsc::op::operator*;
+   assert(args.size() == 3 && "expected 3 block arguments");
+   Value a(args[0]), b(args[1]), c(args[2]);
+   linalg_yield( ValueRange{unk_op("mac", ValueRange{c, a, b},  a.getType())} );
+ }
+ 
+
 void MLIRGenImpl::linalgGenerator3(){
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());
 
@@ -494,34 +501,46 @@ void MLIRGenImpl::linalgGenerator3(){
   //auto ifmapType = MemRefType::get({7,7}, f32Type);//RankedTensorType::get({7,7}, f32Type);
   //auto filterType = MemRefType::get({5,5}, f32Type);//RankedTensorType::get({5,5}, f32Type);
   //auto ofmapType = MemRefType::get({3,3}, f32Type);//RankedTensorType::get({3,3}, f32Type);
-  auto f =
+
+  auto func =
       makeFunction("graph", {}, {});
-  theModule.push_back(f);
+  theModule.push_back(func);
   
-  ScopedContext scope(builder, f.getLoc());
+  ScopedContext scope(builder, func.getLoc());
   
   SmallVector<int64_t, 1> peShape;
-  peShape.push_back(5);
+  peShape.push_back(accel_config.array_height);//12
+  peShape.push_back(accel_config.array_width);//14
   Value proc, mem, comp;
   proc = create_proc("AIEngine");
-  mem = create_mem(ArrayRef<int64_t>{ 11 }, 32, "RegisterFile", 1);
-  comp = create_comp(ArrayRef<std::string>{"proc", "mem"}, ValueRange{proc, mem});
+  mem = create_mem(ArrayRef<int64_t>{ 3 }, 32, "RegisterFile", 1);
+  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(func.getLoc()).getResult();
+  comp = create_comp(ArrayRef<std::string>{"proc", "mem", "dma"}, ValueRange{proc, mem, dma});
   comp = std_splat( comp, VectorType::get(peShape, comp.getType()) );
   //comp = create_comp("pe_array", comp);
 
-  Value sram(create_mem(ArrayRef<int64_t>{ 1024 }, 32, "SRAM", 16));
-  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(f.getLoc()).getResult();
+  Value sram(create_mem(ArrayRef<int64_t>{ 4096 }, 32, "SRAM", 16));
   Value processor(create_proc("MicroPlate") );
-  Value accel = create_comp(ArrayRef<std::string>{"pe_array","proc", "mem", "dma"},
+  Value accel = create_comp(ArrayRef<std::string>{"pe_array","proc", "mem"},
   ValueRange{comp, processor, sram, dma} );
   
   /// -------------------
   /// --    control    --
   /// -------------------
+  int B=1, H, W, KH, KW, C, F, S, EH, EW;
+  H = layer_config.ifmap_height;
+  W = layer_config.ifmap_width;
+  KH = layer_config.filter_height;
+  KW = layer_config.filter_width;
+  C = layer_config.channel;
+  F = layer_config.num_filter;
+  S = layer_config.stride;
+  EH = (H-KH+S)/S;
+  EW = (H-KW+S)/S;
+
   
   //XXX(Zhijing): not sure why we cannot use aliasing here
   Value signal = start_op();
-  //builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
   //auto res = 
   LaunchOpBuilder(signal, processor, ValueRange{accel}, 
     [&](ValueRange ins){
@@ -529,18 +548,21 @@ void MLIRGenImpl::linalgGenerator3(){
       //Value ibuffer = ins[1];
       //Value wbuffer = ins[2];
       //Value obuffer = ins[3];
-      processor = get_comp(accel, "proc");
-      dma = get_comp(accel, "dma");
+      //processor = get_comp(accel, "proc");
+      //dma = get_comp(accel, "dma");
       sram = get_comp(accel, "mem");
+      void (*func)(ValueRange);
+      func = &(unkOpRegionBuilder);
       
-      Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{ 7,7 }, 32, f32Type);
+      Value ibuffer = alloc_op(sram, ArrayRef<int64_t>{ B, H, W, C }, 32, f32Type);//b,h,w,c
       add_comp(accel, ArrayRef<std::string>{"ibuffer"}, ValueRange{ibuffer});
-      Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{ 5,5 }, 32, f32Type);
+      Value wbuffer = alloc_op(sram, ArrayRef<int64_t>{ KH, KW, C, F }, 32, f32Type);//kh, kw, c, f
       add_comp(accel, ArrayRef<std::string>{"wbuffer"}, ValueRange{wbuffer});
-      Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 3,3 }, 32, f32Type);
+      
+      Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ B, EH, EW, F }, 32, f32Type);//b, h, w, f
       add_comp(accel, ArrayRef<std::string>{"obuffer"}, ValueRange{obuffer});
       
-          auto ifmapType = MemRefType::get({1, 7, 7, 1}, f32Type);//b,h,w,c
+          /*auto ifmapType = MemRefType::get({1, 7, 7, 1}, f32Type);
           auto filterType = MemRefType::get({5, 5, 1, 10}, f32Type);//kh, kw, c, f
           auto ofmapType = MemRefType::get({1, 3, 3, 10}, f32Type);//b, h, w, f
           AffineExpr p, q, m, n;
@@ -550,13 +572,12 @@ void MLIRGenImpl::linalgGenerator3(){
           
           auto reshaped_ifmap = linalg_reshape(ifmapType, ibuffer, maps2);
           auto reshaped_filter = linalg_reshape(filterType, wbuffer, maps);
-          auto reshaped_ofmap = linalg_reshape(ofmapType, obuffer, maps2);
-          auto subview_ifmap = std_sub_view(reshaped_ifmap,
+          auto reshaped_ofmap = linalg_reshape(ofmapType, obuffer, maps2);*/
+          auto subview_ibuffer = std_sub_view(ibuffer,
           llvm::ArrayRef<int64_t>({0,0,0,0}),//offset
-          llvm::ArrayRef<int64_t>({1,3,3,1}), //size
-          llvm::ArrayRef<int64_t>({1,1,1,1}), //stride
+          llvm::ArrayRef<int64_t>({B,EH,EW,C}), //size = b, eh, ew, c
+          llvm::ArrayRef<int64_t>({1,S,S,S}), //stride
           ValueRange{}, ValueRange{}, ValueRange{});//not sure why we need this after static assignment
-          
           //ifmap[batch, h, w, c]
           //filter[h, w, c, num]
           //ofmap[batch, h, w, num]
@@ -567,7 +588,7 @@ void MLIRGenImpl::linalgGenerator3(){
               AffineExpr b, f, h, w, kh, kw, c;
               bindDims(builder.getContext(), b, f, h, w, kh, kw, c);
               unsigned numDims = c.cast<AffineDimExpr>().getPosition() + 1;
-              StructuredIndexed I(subview_ifmap), W(reshaped_filter), O(reshaped_ofmap);
+              StructuredIndexed I(subview_ibuffer), W(wbuffer), O(obuffer);
               mlir::edsc::makeGenericLinalgOp(
                 {par, par, par, par, par, par, par}, {
                   I({b,
@@ -577,7 +598,7 @@ void MLIRGenImpl::linalgGenerator3(){
                      simplifyAffineExpr(w, numDims, 0),
                      c}), W({kh, kw, c, f})}, 
                   {O({b, h, w, f})},
-              mlir::edsc::ops::macRegionBuilder);    
+              func);    
           
       //Value output = read_op(obuffer);
       //dealloc_op(ValueRange{wbuffer, obuffer, ibuffer});
@@ -594,6 +615,7 @@ void MLIRGenImpl::linalgGenerator3(){
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";
 }
+
 
 
 

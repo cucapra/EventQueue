@@ -10,7 +10,13 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
   walkRegions(*toplevel.getCallableRegion(), [&](Block &block) {
     // build iter init_value map
     auto pop = block.getParentOp();
-    if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
+    if( auto Op = llvm::dyn_cast<mlir::scf::ForOp>(pop) ) {
+      auto arg_it = Op.getRegionIterArgs().begin();
+      for ( Value operand : Op.getIterOperands() ){
+        valueIds.insert({*arg_it, *arg_it});
+        arg_it += 1;
+      }
+    } else if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
       auto arg_it = block.args_begin();
       for ( Value operand : Op.getLaunchOperands() ){
         valueIds.insert({*arg_it, valueIds[operand]});
@@ -57,7 +63,16 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
         for (Value result : operation.getResults()){
           valueIds.insert({result, result});
         }
-        
+        if(isa<mlir::scf::ForOp>(operation)||isa<xilinx::equeue::LaunchOp>(operation)) {
+          int i = 0;
+          if(isa<xilinx::equeue::LaunchOp>(operation)) i = 1;
+          auto yieldOp = operation.getRegion(0).front().getTerminator();
+          for(auto yieldRes: yieldOp->getOperands()){
+
+            valueIds[operation.getResult(i)]=valueIds[yieldRes];
+            i++;
+          }
+        }
         
         if(auto Op = llvm::dyn_cast<mlir::SplatOp>(operation)){
           vectorIds.insert({operation.getResult(0), valueIds[operation.getOperand(0)]});
@@ -72,7 +87,7 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
 Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent){
   ScopedContext scope(builder, region->getLoc());
   std::size_t start = structs[j].find("[");
-  std::size_t end = structs[j].find("]");
+  std::size_t end = structs[j].rfind("]");
   std::string structure;
   if (start!=std::string::npos){
     assert(end!=std::string::npos && end > start);
@@ -81,20 +96,46 @@ Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<
     structure = structs[j];
   }
   Value new_original_parent = comps_tree[original_parent][structure];
+
   auto original_type = new_original_parent.getType();
   Value new_parent = get_comp(parent, structure, original_type);
   if(auto vector_type = original_type.dyn_cast<VectorType>()){//vector
-    
+
     new_original_parent = new_original_parent.getDefiningOp()->getOperand(0);
-    Value index;
-    if(start==std::string::npos){
-      if( isa<AffineForOp>(new_parent.getParentRegion()->getParentOp()) ){
-        index = cast<AffineForOp>(new_parent.getParentRegion()->getParentOp()).getInductionVar();
-      }else{
-        index = cast<AffineParallelOp>(new_parent.getParentRegion()->getParentOp()).getIVs()[0];
+    llvm::SmallVector<Value, 16> index;
+    //if(start==std::string::npos){
+    auto loopOp = new_parent.getParentRegion()->getParentOp();
+    for(int k=0; k < vector_type.getShape().size(); ){
+      if( isa<AffineForOp>(loopOp) ){
+          index.push_back(cast<AffineForOp>(loopOp).getInductionVar());
+          k++;
+      }else if(isa<AffineForOp>(loopOp)){
+        auto ivs = cast<AffineParallelOp>(loopOp).getIVs();
+        for(auto iv: ivs){
+          index.push_back(iv);
+        }
+        k+=ivs.size();
       }
-    }else{
-      index = std_constant_index(stoi(structs[j].substr(start+1,end-1)));
+      loopOp = loopOp->getParentOp();
+    }
+          
+    //}else{
+    if(start!=std::string::npos){
+      auto specified_index = split(structs[j].substr(start+1,end-start-1), "][");
+      for(int k = 0; k < specified_index.size(); k++){
+        std::string sp = specified_index[k];
+        if(sp!=":"&&sp[0]!='+'&&sp[0]!='-'){
+          index[k]=std_constant_index(stoi(specified_index[k]));
+        }else if(sp[0]=='+'){
+          auto expr = getAffineDimExpr(0, builder.getContext()) + stoi(sp.substr(1));
+          AffineMap m = AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, expr);
+          index[k] =  affine_apply(m, ValueRange{index[k]} );
+        }else if(sp[0]=='-'){
+          auto expr = getAffineDimExpr(0, builder.getContext()) - stoi(sp.substr(1));
+          AffineMap m = AffineMap::get(/*dimCount=*/1, /*symbolCount=*/0, expr);
+          index[k] =  affine_apply(m, ValueRange{index[k]} );
+        }
+      }
     }
     new_parent = std_extract_element(new_parent, index);
   }
@@ -106,8 +147,8 @@ Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<
 }
 
 
-Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value original_parent){
-  ScopedContext scope(builder, region->getLoc());
+Value GenericStructure::getField(OpBuilder builder, std::vector<std::string>& structs, unsigned j, Value original_parent){
+  //ScopedContext scope(builder, region->getLoc());
   std::size_t start = structs[j].find("[");
   std::size_t end = structs[j].find("]");
   std::string structure;
@@ -117,6 +158,10 @@ Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<
   }else{
     structure = structs[j];
   }
+  /*llvm::outs()<<structure<<"=======\n";
+  for(auto iter = comps_tree[original_parent].begin(); iter!=comps_tree[original_parent].end(); iter++){
+    llvm::outs()<<iter->first<<":::"<<iter->second<<"\n";
+  }*/
   Value new_original_parent = comps_tree[original_parent][structure];
   auto original_type = new_original_parent.getType();
 
@@ -124,7 +169,7 @@ Value GenericStructure::getField(OpBuilder builder, Region *region, std::vector<
     new_original_parent = new_original_parent.getDefiningOp()->getOperand(0);
   }
   if(j!=structs.size()-1){
-    return getField(builder, region, structs, j+1, new_original_parent);
+    return getField(builder, structs, j+1, new_original_parent);
   }else{
     return new_original_parent;//ArrayRef<Value>({new_parent, new_original_parent, parent, original_parent});
   }

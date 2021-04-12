@@ -386,6 +386,7 @@ void MyLoopTiling::runOnFunction() {
     // Set up tile sizes; fill missing tile sizes at the end with default tile
     // size or tileSize if one was provided.
     SmallVector<unsigned, 16> tileSizes;
+
     getTileSizes(band, &tileSizes);
     if (llvm::DebugFlag) {
       auto diag = band[0].emitRemark("using tile sizes [");

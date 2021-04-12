@@ -32,20 +32,22 @@
 #include <math.h> 
 
 struct layerConfig {
-  std::string layer_name = "conv2d";
-  int batch = 1;
-  int channel = 3;
-  int ifmap_height = 7;//7
-  int ifmap_width = 7;//7
+  int channel = 6;
+  int ifmap_height = 10;//7
+  int ifmap_width = 10;//7
   int num_filter = 10;//10
   int filter_height = 3;
   int filter_width = 3;
   int stride = 1;
   void print(){
-    llvm::outs()<<"["<<layer_name<<"] "<<batch<<" "<<
-    channel<<" "<<ifmap_height<<" "<<ifmap_width<<" "<<
-    num_filter<<" "<<filter_height<<" "<<filter_width<<" "<<
-    stride<<"\n";
+    llvm::outs()<<"[network] \n"<<
+    "ifmap_height: "<<ifmap_height<<"\n"<<
+    "ifmap_width: "<<ifmap_width<<"\n"<<
+    "filter_height: "<<filter_height<<"\n"<<
+    "filter_width: "<<filter_width<<"\n"<<
+    "channel: "<<channel<<"\n"<<
+    "num_filter: "<<num_filter<<"\n"<<
+    "stride: "<<stride<<"\n";
   }
 };
 
@@ -58,7 +60,7 @@ struct accelConfig {
   int ifmap_sram = 108;
   int filter_sram = 108;
   int ofmap_sram = 108;
-  DataFlow dataflow = WS;
+  DataFlow dataflow = OS;
   std::string getStringDataflow()
   {
     switch (dataflow) {
@@ -116,16 +118,14 @@ public:
           llvm_unreachable("invalid for dataflow");
         }
       }else if(instr=="[Network]"){
-        instream>>instr;
-        layer_config.layer_name = instr;
+
         break;
       }else{
         llvm_unreachable("invalid input configuartion");
       }
     }
     
-    instream>>number;
-    layer_config.batch = number;
+
     instream>>number;
     layer_config.ifmap_height = number;//7
     instream>>number;
@@ -135,9 +135,9 @@ public:
     instream>>number;
     layer_config.filter_width = number;
     instream>>number;
-    layer_config.num_filter = number;//10
-    instream>>number;
     layer_config.channel = number;
+    instream>>number;
+    layer_config.num_filter = number;//10
     instream>>number;
     layer_config.stride = number;
     

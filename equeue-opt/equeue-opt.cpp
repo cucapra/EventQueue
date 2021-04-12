@@ -42,15 +42,15 @@
 #include "EQueue/CommandProcessor.h"
 #include "Generator/EQueueGenerator.h"
 
-static llvm::cl::opt<bool> generateInputFile(
+static llvm::cl::opt<int> generateInputFile(
     "generate",
     llvm::cl::desc("generate the input file"),
-    llvm::cl::init(false));
+    llvm::cl::init(0));
 
 static llvm::cl::opt<bool> simulateInputFile(
     "simulate",
     llvm::cl::desc("simulate the input file"),
-    llvm::cl::init(true));
+    llvm::cl::init(false));
     
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
@@ -119,15 +119,25 @@ mlir::OwningModuleRef loadFileAndProcessModule(mlir::MLIRContext &context) {
 int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
-  mlir::equeue::registerEQueuePasses();
+  mlir::equeue::registerStructureMatchingPass();
+  mlir::equeue::registerSplitLaunchPass();
   mlir::equeue::registerTilingPass();
   mlir::equeue::registerParallelizePass();
   mlir::equeue::registerAllocatePass();
+  mlir::equeue::registerReassignBufferPass();
   mlir::equeue::registerMemCopyPass();
+  mlir::equeue::registerMemCopyToLaunchPass();
+  mlir::equeue::registerMergeMemCopyLaunchPass();
   mlir::equeue::registerLoopRemovingPass();
+  mlir::equeue::registerSimplifyAffineLoopPass();
+  mlir::equeue::registerLoopReorderPass();
   mlir::equeue::registerAddLoopPass();
+  mlir::equeue::registerMergeLoopPass();
+  mlir::equeue::registerModifyLoopPass();
   mlir::equeue::registerEqueueReadWritePass();
   mlir::equeue::registerSystolicArrayPass();
+  mlir::equeue::registerParallelToEQueuePass();
+  mlir::equeue::registerLowerExtractionPass();
 
   // Register equeue passes here.
   mlir::registerDialect<xilinx::equeue::EQueueDialect>();
@@ -158,7 +168,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
   
-  if(generateInputFile){
+  if(generateInputFile>=1){
     MLIRGenImpl generator(context);	  
     
     std::string config_fn;
@@ -173,9 +183,9 @@ int main(int argc, char **argv) {
         llvm::errs() << "cannot find configration file"<<configFilename.c_str()<<"!\n";
       }
     }
-    generator.firMultiKernel();
-    //generator.scaleSimGenerator();
-    //generator.linalgGenerator3();
+    if(generateInputFile==1) generator.scaleSimGenerator();
+    if(generateInputFile==2) generator.linalgGenerator3();
+    if(generateInputFile==3) generator.firMultiKernel();
   }
   else{
     // Set up the input file.
@@ -185,14 +195,16 @@ int main(int argc, char **argv) {
       return 1;
     }
     //output->os()//llvm::nulls()
-    if (failed(MlirOptMain(llvm::outs(), std::move(file), passPipeline,
-                           splitInputFile, verifyDiagnostics, verifyPasses,
-                           allowUnregisteredDialects))) {
-      return 1;
-    }
+    
+
 	  
     
-    if(simulateInputFile){
+    if(simulateInputFile){    
+      if (failed(MlirOptMain(llvm::nulls(), std::move(file), passPipeline,
+         splitInputFile, verifyDiagnostics, verifyPasses,
+         allowUnregisteredDialects))) {
+        return 1;
+      }
       auto module = loadFileAndProcessModule(context);
 	    std::string json_fn;
 	    if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
@@ -201,6 +213,13 @@ int main(int argc, char **argv) {
 	    acdc::CommandProcessor proc(traceStream);
 	    proc.run(module.get());
       json_fp << traceStream.str();
+    }else{
+      if (failed(MlirOptMain(llvm::outs(), std::move(file), passPipeline,
+         splitInputFile, verifyDiagnostics, verifyPasses,
+         allowUnregisteredDialects))) {
+        return 1;
+      }
+    
     }
   }
   

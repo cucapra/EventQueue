@@ -45,7 +45,8 @@ enum class MemOp { Read, Write };
 struct Device {
     //unique id
     uint64_t uid;
-
+    
+    std::string type;
     std::vector< std::vector<std::pair<uint64_t, uint64_t>> > events;
     //int clock_frequency;
     int energy;
@@ -53,7 +54,7 @@ struct Device {
     int equeues;
     
     
-    Device(uint64_t id, int eqs) : uid(id), energy(1), equeues(eqs) {
+    Device(uint64_t id, int eqs, std::string typ) : uid(id), energy(1), equeues(eqs), type(typ)  {
         for(int i = 0; i < eqs; i++){
             std::vector<std::pair<uint64_t, uint64_t>> event_queue;
             event_queue.push_back(std::make_pair(0,0));
@@ -143,7 +144,7 @@ struct Connection : public Device{
     int bandwidth;
     std::map<uint64_t, int> write_schedule;
     int data_total;
-    Connection(uint64_t id, int bandwid) : Device(id, 1) {
+    Connection(uint64_t id, int bandwid) : Device(id, 1, "Connection") {
         bandwidth = bandwid;
         data_total = 0;
     }
@@ -160,10 +161,6 @@ struct Connection : public Device{
           cycle = std::max({cycle, start_time+getReadOrWriteCycles(bits)});
         }
         write_schedule.insert({cycle, bits});
-        llvm::outs()<<"-----write-------\n";
-        for(auto iter = write_schedule.begin(); iter!=write_schedule.end(); iter++){
-          llvm::outs()<<iter->first<<" "<<iter->second<<"\n\n";
-        }
         return true;
       }else{
 
@@ -183,36 +180,12 @@ struct Connection : public Device{
         if(required_cycle > cycle) return false;
         write_schedule.erase(write_schedule.begin(), ++iter);//[ , )
         if(vol!=bits) write_schedule.insert({required_cycle, vol-bits});
-        /*
-        //if iter==write_schedule.begin(), vol=0, write hasn't happen, we should return false
-        //if iter==write_schedule.end(), vol = maxium vol it can get, while some write hasn't happen,
-        //we should return false
-        llvm::outs()<<"-------"<<vol<<" "<<bits<<"    \n";
-        if(vol < bits) return false;
-        //vol = maxium vol it can get, while some write might haven't happen
-        //it depends on the time
-        auto last_it = iter;
-        iter--;
-        //prev cycle + amount of data/bandwidth = cycle required to get # bits
-        auto required_cycle = iter->first + getReadOrWriteCycles(bits);
-        llvm::outs()<<"-------"<<cycle<<" "<<required_cycle<<"    \n";
-        if ( required_cycle > cycle){
-          return false;
-        }
-        llvm::outs()<<vol-bits<<"\n";
-        //the last write_schedule ->first may <= cycle
-        //but it perfectly fall into iter = write_schedule.end() and this code still works
-        write_schedule.erase(write_schedule.begin(), last_it);
-        llvm::outs()<<vol<<" "<<bits<<"-------\n";
-        if(vol!=bits) write_schedule.insert({required_cycle, vol-bits});
-        for(iter = write_schedule.begin(); iter!=write_schedule.end(); iter++){
-          llvm::outs()<<iter->first<<" "<<iter->second<<"\n\n";
-        }*/
+
         return true;
       }
     }
 
-    uint64_t getBandwidth(uint64_t cycles){
+    float getBandwidth(uint64_t cycles){
       if(cycles == 0) return 0;
       return data_total/cycles;
     }
@@ -224,7 +197,7 @@ struct DMA : public Device{
     int warmup_cycles;//bus grant, bus request
     //double transfer_rate_growth;//growth rate of rate
     //int saturated_volume;
-    DMA(uint64_t id) : mode(BURST_MODE), transfer_rate(10 KB), warmup_cycles(0), Device(id, 1) {}
+    DMA(uint64_t id) : mode(BURST_MODE), transfer_rate(10 KB), warmup_cycles(0), Device(id, 1, "DMA") {}
     int getTransferCycles(int volume){
         return warmup_cycles + ceil(volume/transfer_rate);
     }
@@ -236,59 +209,76 @@ constexpr unsigned int hash(const char *s, int off = 0) {
 
 
 struct Memory : public Device {
-    int banks;
     int read_ports;
     int write_ports;
     int data_lines;//lines of data
     int data_size;
-    int total_size;
+    int full_data_size;
     int total_volume;
     int default_volume;
     int cycles_per_data;//cycles to handle a set of read or write
+    int coefficient;
     int min_cycles;
+    //to cal bandwidth
+    uint64_t total_read;
+    uint64_t total_write;
 
-    Memory(uint64_t id, int bks, int rp, int wp, int de_vol, int dlines, int dtype_bit, 
-        int cyc_per_data, int min_cyc) : Device(id, bks) {
-        banks = bks;
+    Memory(uint64_t id, int bks, std::string type, int rp, int wp, int de_vol, int dlines, int dtype_bit, 
+        int cyc_per_data, int min_cyc) : Device(id, bks, type) {
         read_ports = rp;
         write_ports = wp;
-        default_volume = de_vol;
-        data_lines = dtype_bit;
-        int address_size = dlines ? ceil(log2(dlines)) : 1;
+        data_lines = dlines; 
+        data_size = dtype_bit;
+        int address_size = dlines ? ceil(log2(dlines)) : 0;
         //valid + address bits + data bits
-        default_volume = de_vol; 
-        total_size = 1 + address_size + data_size; 
-        total_volume = total_size * dlines;
-        cycles_per_data = cyc_per_data;
-        min_cycles= min_cyc;
-        
+        full_data_size = 1 + address_size + data_size; 
+        total_volume = full_data_size * dlines;
+        default_volume = de_vol;
+        cycles_per_data = ceil(cyc_per_data * (de_vol/default_volume));
+        min_cycles= ceil(min_cyc * (de_vol/default_volume));
+        total_read = 0;
+        total_write = 0;
     }
 
-    uint64_t getReadOrWriteCycles(int vol, int dlines, MemOp op){
-        int cycles = std::max( (int)round( cycles_per_data * (float)total_volume/(float)vol ) , min_cycles);
-        if(op == MemOp::Read)
-            return 0;
-            //return (read_ports == ENOUGH)? cycles : ceil((float)dlines / (float)read_ports)*cycles;
-        else
-            return (write_ports == ENOUGH)? cycles : ceil((float)dlines / (float)write_ports)*cycles;
+    uint64_t getReadOrWriteCycles(int dlines, MemOp op){
+        //llvm::outs()<<min_cycles<<" "<<int(ceil((float)dlines / (float)read_ports)*cycles_per_data)<<"\n";
+        if(op == MemOp::Read){
+            total_read += dlines*data_size;
+            return (read_ports == ENOUGH)? min_cycles : int(ceil((float)dlines / (float)read_ports)*cycles_per_data);
+        }else{
+            total_write += dlines*data_size;
+            return (write_ports == ENOUGH)? min_cycles : int(ceil((float)dlines / (float)write_ports)*cycles_per_data);
+        }
+    }
+    float getBandwidth(uint64_t cycles, MemOp op){
+      if(cycles == 0) return 0;
+      if(op == MemOp::Read)
+        return (float)total_read/(float)cycles;
+      else
+        return (float)total_write/(float)cycles;
     }
 };
 
 //1:10:100 is the usual estimate
 struct RegisterFile : public Memory {
-   RegisterFile(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 64 Byte, dlines, dtype_bit, 
+   RegisterFile(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, "RegisterFile", ENOUGH, ENOUGH, 64 Byte, dlines, dtype_bit, 
         0, 0) {}
 };
 struct SRAM : public Memory {
-   SRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 10 KB, dlines, dtype_bit, 
-        10, 0) {}
+   SRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, "SRAM", bks, ENOUGH, 10 KB, dlines, dtype_bit, 
+        0, 0) {}
 };
+
+/*struct SRAM : public Memory {
+   SRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, "SRAM", bks, ENOUGH, 10 KB, dlines, dtype_bit, 
+        5, 5) {}
+};*/
 struct DRAM : public Memory {
-   DRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, 512 MB, dlines, dtype_bit, 
-        100, 5) {}
+   DRAM(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, "DRAM", bks, ENOUGH, 512 MB, dlines, dtype_bit, 
+        100, 50) {}
 };
 struct SINK : public Memory {
-   SINK(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, 
+   SINK(uint64_t id, int bks, int dlines, int dtype_bit) : Memory(id, bks, "SINK", ENOUGH, ENOUGH, ENOUGH, ENOUGH, ENOUGH, 
         0, 0) {}
 };
 

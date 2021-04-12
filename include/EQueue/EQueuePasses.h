@@ -17,15 +17,25 @@ namespace equeue {
 
 
 // class FuncOp;
-void registerEQueuePasses();
+void registerStructureMatchingPass();
+void registerSplitLaunchPass();
 void registerTilingPass();
 void registerParallelizePass();
 void registerAllocatePass();
+void registerReassignBufferPass();
 void registerMemCopyPass();
+void registerMemCopyToLaunchPass();
+void registerMergeMemCopyLaunchPass();
 void registerLoopRemovingPass();
+void registerSimplifyAffineLoopPass();
+void registerLoopReorderPass();
 void registerAddLoopPass();
+void registerMergeLoopPass();
+void registerModifyLoopPass();
 void registerSystolicArrayPass();
 void registerEqueueReadWritePass();
+void registerParallelToEQueuePass();
+void registerLowerExtractionPass();
 /// Generate the code for registering passes.
 }
 } // end namespace mlir

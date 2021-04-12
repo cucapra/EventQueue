@@ -52,6 +52,7 @@ void StructureMatchingPass::runOnFunction() {
     for (auto i = 0; i < indices.size(); i++){
 
       auto region = regions[indices[i]];
+
       auto structs = structs_list[i];
       auto launch_next = region->front().begin();//++Block::iterator(launch_operation);
       auto start_it = launch_next, end_it=launch_next;
@@ -109,7 +110,7 @@ void StructureMatchingPass::runOnFunction() {
 
 } // end anonymous namespace
 
-void equeue::registerEQueuePasses() {
+void equeue::registerStructureMatchingPass() {
     PassRegistration<StructureMatchingPass>(
       "match-equeue-structure",
       "add structure to parallel op");

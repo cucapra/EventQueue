@@ -17,6 +17,10 @@ void MLIRGenImpl::scaleSimGenerator(){
   // ofmap px
   int px_ofmap = E_h * E_w * layer_config.num_filter;
   int e2 = E_h * E_w;
+  //accel_config.print();
+  //layer_config.print();
+  //return;
+
   
   
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());  
@@ -42,7 +46,7 @@ void MLIRGenImpl::scaleSimGenerator(){
     }
   }
   //lines, data size, register type, banks
-  Value sram(create_mem(ArrayRef<int64_t>{ accel_config.ifmap_sram }, 32, "SRAM", accel_config.array_height + accel_config.array_width ) );
+  Value sram(create_mem(ArrayRef<int64_t>{ accel_config.ifmap_sram }, 32, "SRAM", 2*accel_config.array_height + 2*accel_config.array_width ) );
   Value dma_col;
   for(int i = 0; i < accel_config.array_width; i++){
     Value dma = create_dma();
@@ -140,22 +144,29 @@ void MLIRGenImpl::scaleSimGenerator(){
         if(last_width==0) last_width = accel_config.array_width;
         int last_height = e2%accel_config.array_height;
         if(last_height==0) last_height = accel_config.array_height;
+
         for(int t = 0; t < num_v_fold*num_h_fold*px_per_conv + 
             last_width + last_height; t++ ){
           int col_this_fold = accel_config.array_width;
           int row_this_fold = accel_config.array_height;
+          if(t >= num_v_fold*num_h_fold*px_per_conv){
+            col_this_fold = last_width;
+            row_this_fold = last_height;
+          }
           //if(t>= num_v_fold*num_h_fold*px_per_conv) col_this_fold = last_width;
           //if(t>= num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv) row_this_fold = last_height;
           
           Value start_cpy = start_op();
           Value c0 = std_constant_index(0);
+          
+          /*
           Value col_cpy_end, prev_col_cpy;
           bool empty_col = true;
           bool first = true;
           for(int c = 0; c < col_this_fold; c++){
             if(t>=c && t+col_this_fold-c < num_v_fold*num_h_fold*px_per_conv + 
             last_width + last_height){
-              col_cpy_end = memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ArrayRef<int64_t>{1}, c, 0);
+              col_cpy_end = start_cpy;//memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ArrayRef<int64_t>{1}, c, 0);
               if(!first){
                 prev_col_cpy = control_and(ValueRange{col_cpy_end, prev_col_cpy});
               }else{
@@ -171,7 +182,7 @@ void MLIRGenImpl::scaleSimGenerator(){
           for(int r = 0; r < row_this_fold; r++){
             if(t>=r && t+row_this_fold-r < num_v_fold*num_h_fold*px_per_conv + 
             last_width + last_height){
-              row_cpy_end = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
+              row_cpy_end = start_cpy;//memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
               if(!first){
                 prev_row_cpy = control_and(ValueRange{row_cpy_end, prev_row_cpy});
               }else{
@@ -183,7 +194,7 @@ void MLIRGenImpl::scaleSimGenerator(){
           }
           if(!empty_row && !empty_col) await_op(ValueRange{prev_row_cpy, prev_col_cpy});
           if(!empty_row && empty_col) await_op(ValueRange{prev_row_cpy});
-          if(empty_row && !empty_col) await_op(ValueRange{prev_col_cpy});
+          if(empty_row && !empty_col) await_op(ValueRange{prev_col_cpy});*/
           
           
           Value start_compute_signal = start_op();
@@ -192,17 +203,58 @@ void MLIRGenImpl::scaleSimGenerator(){
           for(int r = 0; r < row_this_fold; r++){//par_for
             SmallVector<Value, 20> ifmap_flight_line, filter_flight_line, ofmap_flight_line;
             for(int c = 0 ; c < col_this_fold; c++){//par_for
-              auto pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c] }, 
-                [&](ValueRange ins){
-                filter = read_op(ins[1]);
-                ifmap = read_op(ins[0], 1);
-                //ofmap = std_mulf(ifmap, filter);
-                Value ofmap = read_op(ins[2], 2);
-                //ofmap = std_addf(ofmap, ofmap_old);
-                unk_op("mac", ValueRange{ofmap, ifmap, filter}, f32Type);
-                return_op(ValueRange{ifmap, filter, ofmap});
-              });
+              ValueRange pe_res;
+              if(c==0 && r==0){
+                pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer, wbuffer2s[r][c], obuffer2s[r][c] }, 
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1], ArrayRef<int64_t>{1}, c);
+                  ifmap = read_op(ins[0], ArrayRef<int64_t>{1}, col_this_fold+r);
+                  //ofmap = std_mulf(ifmap, filter);
+                  Value ofmap = read_op(ins[2], ArrayRef<int64_t>{1}, 2);
+                  //ofmap = std_addf(ofmap, ofmap_old);
+                  unk_op("mac", ValueRange{ofmap, ifmap, filter}, f32Type);
+                  return_op(ValueRange{ifmap, filter, ofmap});
+                });
+              }
+              else if(c==0){
+                pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer, wbuffer2s[r][c], obuffer2s[r][c] }, 
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1], ArrayRef<int64_t>{1});
+                  ifmap = read_op(ins[0], ArrayRef<int64_t>{1}, col_this_fold+r);
+                  //ofmap = std_mulf(ifmap, filter);
+                  Value ofmap = read_op(ins[2], ArrayRef<int64_t>{1}, 2);
+                  //ofmap = std_addf(ofmap, ofmap_old);
+                  unk_op("mac", ValueRange{ofmap, ifmap, filter}, f32Type);
+                  return_op(ValueRange{ifmap, filter, ofmap});
+                });
+              }
+              else if(r==0){
+                pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer2s[r][c], wbuffer, obuffer2s[r][c] }, 
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1], ArrayRef<int64_t>{1}, c);
+                  ifmap = read_op(ins[0], ArrayRef<int64_t>{1}, 1);
+                  //ofmap = std_mulf(ifmap, filter);
+                  Value ofmap = read_op(ins[2], ArrayRef<int64_t>{1}, 2);
+                  //ofmap = std_addf(ofmap, ofmap_old);
+                  unk_op("mac", ValueRange{ofmap, ifmap, filter}, f32Type);
+                  return_op(ValueRange{ifmap, filter, ofmap});
+                });
+              }else{
+                pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
+                  ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c] }, 
+                  [&](ValueRange ins){
+                  filter = read_op(ins[1], ArrayRef<int64_t>{1});
+                  ifmap = read_op(ins[0], ArrayRef<int64_t>{1}, 1);
+                  //ofmap = std_mulf(ifmap, filter);
+                  Value ofmap = read_op(ins[2], ArrayRef<int64_t>{1}, 2);
+                  //ofmap = std_addf(ofmap, ofmap_old);
+                  unk_op("mac", ValueRange{ofmap, ifmap, filter}, f32Type);
+                  return_op(ValueRange{ifmap, filter, ofmap});
+                });
+              }
               
               compute_signal = pe_res[0];
               ifmap_flight_line.push_back(pe_res[1]);//c
@@ -226,22 +278,23 @@ void MLIRGenImpl::scaleSimGenerator(){
             for(int r = 0; r < row_this_fold; r++){//par_for
               if(c!=col_this_fold-1 && r!=row_this_fold-1){
                 compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
-                  ifmap_flight[r][c], filter_flight[r][c], ofmap_flight[r][c], obuffer2s[r][c], 
+                  ifmap_flight[r][c], filter_flight[r][c], ofmap_flight[r][c], 
                   obuffer2s[r][c], ibuffer2s[r][c+1], wbuffer2s[r+1][c], obuffer}, 
                   [&](ValueRange ins){
                   ifmap = ins[0];
-                  write_op(ifmap, ins[4], 1);
+                  write_op(ifmap, ins[4], ArrayRef<int64_t>{1}, 1);
                   filter = ins[1];
-                  write_op(filter, ins[5]);
+                  write_op(filter, ins[5], ArrayRef<int64_t>{1});
                   ofmap = ins[2];
-                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
-                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
-                    write_op(c0, ins[3], 2);
-                    //???
-                    //write_op(ofmap, ins[6], c%2);
-                  }else{
-                    write_op(ofmap, ins[3], 2);
+                  //if(t > c + r && t <= c + r + num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                  if( t-c-r > px_per_conv-1){ //&& t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                    if((t-c-r)%px_per_conv==0){
+                      c0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
+                      write_op(c0, ins[3], ArrayRef<int64_t>{1}, 2);
+                      write_op(ofmap, ins[6], ArrayRef<int64_t>{1}, c);
+                    }else{
+                      write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, 2);
+                    }
                   }
                   return_op(ValueRange{});
                 })[0];
@@ -253,13 +306,15 @@ void MLIRGenImpl::scaleSimGenerator(){
                   filter = ins[0];
                   write_op(filter, ins[3]);
                   ofmap = ins[1];
-                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
-                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
-                    write_op(c0, ins[2], 2);
-                    write_op(ofmap, ins[4], c);
-                  }else{
-                    write_op(ofmap, ins[2], 2);
+                  //if(t > c + r ) && t <= c + r + num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                  if( t-c-r > px_per_conv-1 && t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                    if((t-c-r)%px_per_conv==0){
+                      c0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
+                      write_op(c0, ins[2], ArrayRef<int64_t>{1}, 2);
+                      write_op(ofmap, ins[4], ArrayRef<int64_t>{1}, c);
+                    }else{
+                      write_op(ofmap, ins[2], ArrayRef<int64_t>{1}, 2);
+                    }
                   }
                   return_op(ValueRange{});
                 })[0];
@@ -271,13 +326,15 @@ void MLIRGenImpl::scaleSimGenerator(){
                   ifmap = ins[0];
                   write_op(ifmap, ins[3], 1);
                   ofmap = ins[1];
-                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
-                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
-                    write_op(c0, ins[2], 2);
-                    write_op(ofmap, ins[4], c);
-                  }else{
-                    write_op(ofmap, ins[2], 2);
+                  //if(t > c + r && t <= c + r + num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                  if( t-c-r > px_per_conv-1 && t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                    if((t-c-r)%px_per_conv==0){
+                      c0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
+                      write_op(c0, ins[2], ArrayRef<int64_t>{1}, 2);
+                      write_op(ofmap, ins[4], ArrayRef<int64_t>{1}, c);
+                    }else{
+                      write_op(ofmap, ins[2], ArrayRef<int64_t>{1}, 2);
+                    }
                   }
                   return_op(ValueRange{});
                 })[0];
@@ -287,13 +344,15 @@ void MLIRGenImpl::scaleSimGenerator(){
                   obuffer}, // a little violation of resource control
                   [&](ValueRange ins){
                   ofmap = ins[0];
-                  if( t-c-r > 0 && (t-c-r)%px_per_conv==0 && 
-                    t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
-                    c0 = std_constant_float(llvm::APFloat(7.0f), f32Type);
-                    write_op(c0, ins[1], 2);
-                    write_op(ofmap, ins[2], c);
-                  }else{
-                    write_op(ofmap, ins[1], 2);
+                  //if(t > c + r  && t <= c + r + num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                  if( t-c-r > px_per_conv-1 && t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
+                    if((t-c-r)%px_per_conv==0){
+                      c0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
+                      write_op(c0, ins[1], ArrayRef<int64_t>{1}, 2);
+                      write_op(ofmap, ins[2], ArrayRef<int64_t>{1}, c);
+                    }else{
+                      write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, 2);
+                    }
                   }
                   return_op(ValueRange{});
                 })[0];
@@ -311,7 +370,7 @@ void MLIRGenImpl::scaleSimGenerator(){
         return_op(ValueRange{});
     });
   }
-  
+
     // input stationary
   if(accel_config.dataflow==DataFlow::IS){
     int num_h_fold = 1;
@@ -428,14 +487,13 @@ void MLIRGenImpl::scaleSimGenerator(){
                   //----------------------------------
                   for(int r = 0; r < row_this_fold-1; r++){//par_for
                     // one row
-                    
     
                     SmallVector<Value, 20> ifmap_flight_line;
                     for(int c = 0; c < col_this_fold; c++){//par_for
                       // read from buffer
                       auto pe_res = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{ibuffer2s[r][c]}, 
                         [&](ValueRange ins){
-                        ifmap = read_op(ins[0]);
+                        ifmap = read_op(ins[0], ArrayRef<int64_t>{1});
                         return_op(ValueRange{ifmap});
                       });
                   
@@ -459,7 +517,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                     for(int c = 0; c < col_this_fold; c++){//par_for
                       input_cpy = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{ifmap_flight[r][c], ibuffer2s[r+1][c]}, 
                         [&](ValueRange ins){
-                        write_op(ins[0], ins[1]);
+                        write_op(ins[0], ins[1], ArrayRef<int64_t>{1});
                         return_op(ValueRange{});
                       })[0];
                       if(c==0 && r==0){
@@ -485,8 +543,22 @@ void MLIRGenImpl::scaleSimGenerator(){
                     prev_input_cpy = control_and(ValueRange{prev_input_cpy, input_cpy});
                   }
                 }
-                await_op(ValueRange{prev_input_cpy});
+                //await_op(ValueRange{prev_input_cpy});
                 
+                if(t==row_this_fold - 1){
+                  Value memcpy_signal, prev_memcpy_signal;
+                  for(int r = 0; r < row_this_fold; r++){//par_for
+                    memcpy_signal = memcpy_op(start_cpy, wbuffer, wbuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
+                    if(r==0){
+                      prev_memcpy_signal = memcpy_signal;
+                    } else {
+                      prev_memcpy_signal = control_and(ValueRange{prev_memcpy_signal, memcpy_signal});
+                    }
+                  }
+                  await_op(ValueRange{prev_input_cpy, prev_memcpy_signal});
+                }else{
+                  await_op(ValueRange{prev_input_cpy});
+                }
               }
               
               // computing starts
@@ -494,25 +566,9 @@ void MLIRGenImpl::scaleSimGenerator(){
               // first move weights in, num here denotes the number of weights to be copied in, for one cycle
               //----------------------------------------------------
               Value num;
-              for(int i = 0; i < e2 + accel_config.array_width + accel_config.array_height; i++){
-                Value compute_signal, prev_compute_signal;
-                /*int num = min(i, accel_config.array_height);
-                if (i > e2 + accel_config.array_height){
-                    num = 0;
-                  }
-                // copying weights in
-                Value start_weight_copy = start_op();
-                Value weight_cpy,  prev_weight_cpy;
 
-                for(int n = 0; n < num ; n++){
-                  weight_cpy = memcpy_op(start_weight_copy, wbuffer, wbuffer2s[n][0], dma_cols[n], ArrayRef<int64_t>{1}, n, 0);//c,0
-                  if(n==0){
-                    prev_weight_cpy=control_and(ValueRange{weight_cpy});
-                  }else{
-                    prev_weight_cpy = control_and(ValueRange{prev_weight_cpy, weight_cpy});
-                  }
-                }
-                await_op(ValueRange{prev_input_cpy});*/
+              for(int t = 0; t < layer_config.num_filter + row_this_fold + col_this_fold; t++){
+                Value compute_signal, prev_compute_signal;
                 //---------------------------------
                 // read out current values in PE
                 //---------------------------------
@@ -525,10 +581,10 @@ void MLIRGenImpl::scaleSimGenerator(){
                     auto pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                       ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c]}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0]);
-                      filter = read_op(ins[1], 1);
+                      ifmap = read_op(ins[0], ArrayRef<int64_t>{1});
+                      filter = read_op(ins[1], ArrayRef<int64_t>{1}, 1);
                       //ofmap = std_mulf(ifmap, filter);
-                      Value ofmap = read_op(ins[2], 2);
+                      Value ofmap = read_op(ins[2], ArrayRef<int64_t>{1}, 2);
                       //ofmap = std_addf(ofmap, ofmap_old);
                       unk_op("mac", ValueRange{ofmap, ifmap, filter},  f32Type);
                       // precalculated
@@ -548,7 +604,22 @@ void MLIRGenImpl::scaleSimGenerator(){
                   ifmap_flight.push_back(ifmap_flight_line);
                   ofmap_flight.push_back(ofmap_flight_line);
                 }
-                await_op(ValueRange{prev_compute_signal});
+                
+                if (t < layer_config.num_filter-1) {
+                  Value memcpy_signal, prev_memcpy_signal;
+                  for(int r = 0; r < row_this_fold; r++){//par_for
+                    memcpy_signal = memcpy_op(start_cpy, wbuffer, wbuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
+                    if(r==0){
+                      prev_memcpy_signal = memcpy_signal;
+                    } else {
+                      prev_memcpy_signal = control_and(ValueRange{prev_memcpy_signal, memcpy_signal});
+                    }
+                  }
+                  await_op(ValueRange{ prev_compute_signal, prev_memcpy_signal} );
+                } else {
+                  await_op(ValueRange{prev_compute_signal});
+                }
+                //await_op(ValueRange{prev_compute_signal});
                 // -------------------------------------------
                 // value writeback and handle outputs
                 // loop over the flight_map
@@ -561,14 +632,17 @@ void MLIRGenImpl::scaleSimGenerator(){
                     if(c!=col_this_fold-1 && r!=row_this_fold-1){
                       compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                         ifmap_flight[r][c], ofmap_flight[r][c], 
-                        ibuffer2s[r][c+1], obuffer2s[r+1][c], obuffer}, 
+                        ibuffer2s[r][c+1], obuffer2s[r+1][c]}, 
                         [&](ValueRange ins){
                         ifmap = ins[0];
                         // write ifmap_flight[r][c] to ibuffer2s[r][c+1]
-                        write_op(ifmap, ins[2]);
+                        write_op(ifmap, ins[2], ArrayRef<int64_t>{1});
                         ofmap = ins[1];
                         // write ofmap_flight[r][c] to obuffer2s[r+1][c]
-                        write_op(ofmap, ins[3], 2);
+                        if(t > c + r + 1 &&
+                          t <= c + layer_config.num_filter + row_this_fold){
+                          write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, 2);
+                        }
                         // no output is here, because we are not at the end of the row
                         return_op(ValueRange{});
                       })[0];
@@ -576,11 +650,14 @@ void MLIRGenImpl::scaleSimGenerator(){
                     } else if( c==col_this_fold-1 && r!=row_this_fold-1 ){// compute
                       compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                         ofmap_flight[r][c], 
-                        obuffer2s[r+1][c], obuffer}, 
+                        obuffer2s[r+1][c]}, 
                         [&](ValueRange ins){
                         ofmap = ins[0];
                         // write ofmap_flight[r][c] to obuffer2s[r+1][c]
-                        write_op(ofmap, ins[1], 2);  
+                        if(t > c + r + 1 &&
+                          t <= c + layer_config.num_filter + row_this_fold){
+                          write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, 2);  
+                        }
                         // no output is here, because we are not at the end of the                  
                         return_op(ValueRange{});
                       })[0];
@@ -593,13 +670,13 @@ void MLIRGenImpl::scaleSimGenerator(){
                         [&](ValueRange ins){
                         ifmap = ins[0];
                         // write ifmap_flight[r][c] to ibuffer2s[r][c+1] 
-                        write_op(ifmap, ins[2]);
+                        write_op(ifmap, ins[2], ArrayRef<int64_t>{1});
                         // handling output condition
                         ofmap = ins[1];
-                        if( r+c <= i && // too early, nothing to pass
-                            i <= e2 + accel_config.array_height + c// too late, nothing to pass
-                        ){
-                          write_op(ofmap, ins[3], c);
+                        if(t > c + r + 1&& //t' + 1 = t
+                          t <= c + layer_config.num_filter + row_this_fold){
+                          //llvm::outs()<<t<<": "<<r<<" "<<c<<"\n";
+                          write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, c);
                         }
                         return_op(ValueRange{});
                       })[0];
@@ -610,10 +687,10 @@ void MLIRGenImpl::scaleSimGenerator(){
                         obuffer}, 
                         [&](ValueRange ins){
                         ofmap = ins[0];
-                        if( r+c <= i && // too early, nothing to pass
-                            i <= e2 + accel_config.array_height + c// too late, nothing to pass
-                        ){
-                          write_op(ofmap, ins[1], c);
+                        if(t > c + r + 1 &&
+                          t <= c + layer_config.num_filter + row_this_fold){
+                          //llvm::outs()<<t<<": "<<r<<" "<<c<<"\n";
+                          write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, c);
                         }
                         return_op(ValueRange{});
                       })[0];
@@ -632,6 +709,7 @@ void MLIRGenImpl::scaleSimGenerator(){
          return_op(ValueRange{});
     });
   }
+
     
     if(accel_config.dataflow==DataFlow::WS){
       int e_fresh_px = E_h * layer_config.num_filter;
@@ -648,7 +726,6 @@ void MLIRGenImpl::scaleSimGenerator(){
       int max_cols_per_v_fold = max_parallel_conv * accel_config.array_width;
       int num_v_fold = ceil( (float)layer_config.num_filter / (float)max_cols_per_v_fold);
       
-      //llvm::outs()<<num_v_fold<<" "<<num_h_fold<<"\n";//1, 3
       auto remaining_cols = layer_config.num_filter;
       
       //isolated from above
@@ -750,7 +827,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                     for(int c = 0; c < col_this_fold; c++){//par_for
                       auto pe_res = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{wbuffer2s[r][c]}, 
                         [&](ValueRange ins){
-                        filter = read_op(ins[0]);
+                        filter = read_op(ins[0], ArrayRef<int64_t>{1});
                         return_op(ValueRange{filter});
                       });
                       filter_cpy = pe_res[0];
@@ -769,7 +846,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                     for(int c = 0; c < col_this_fold; c++){//par_for
                       filter_cpy = LaunchOpBuilder(start_cpy, procs[r][c], ValueRange{ifmap_flight[r][c], wbuffer2s[r+1][c]}, 
                         [&](ValueRange ins){
-                        write_op(ins[0], ins[1]);
+                        write_op(ins[0], ins[1], ArrayRef<int64_t>{1});
                         return_op(ValueRange{});
                       })[0];
                       if(c==0 && r==0){
@@ -806,8 +883,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                 }
                 //await_op(ValueRange{prev_filter_cpy});
               }
-                  
-              
+
               for(int t = 0; t < e2+row_this_fold+col_this_fold; t++){//seq_for
               //one parallel cycle
                 Value compute_signal, prev_compute_signal;
@@ -821,10 +897,10 @@ void MLIRGenImpl::scaleSimGenerator(){
                     auto pe_res = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                       ibuffer2s[r][c], wbuffer2s[r][c], obuffer2s[r][c]}, 
                       [&](ValueRange ins){
-                      ifmap = read_op(ins[0]);
-                      filter = read_op(ins[1], 1);
+                      ifmap = read_op(ins[0], ArrayRef<int64_t>{1});
+                      filter = read_op(ins[1], ArrayRef<int64_t>{1}, 1);
                       //ofmap = std_mulf(ifmap, filter);
-                      Value ofmap = read_op(ins[2], 2);
+                      Value ofmap = read_op(ins[2], ArrayRef<int64_t>{1}, 2);
                       //ofmap = std_addf(ofmap, ofmap_old);
                       unk_op("mac", ValueRange{ofmap, ifmap, filter}, f32Type);
                       return_op(ValueRange{ifmap, ofmap});
@@ -843,7 +919,16 @@ void MLIRGenImpl::scaleSimGenerator(){
                   ofmap_flight.push_back(ofmap_flight_line);
                 }
                 if (t < e2-1) {
-                  await_op(ValueRange{ prev_compute_signal, memcpy_op(start_compute_signal, ibuffer, ibuffer2s[0][0], dma_rows[0], ArrayRef<int64_t>{1}, 0, 0) } );
+                  Value memcpy_signal, prev_memcpy_signal;
+                  for(int r = 0; r < row_this_fold; r++){//par_for
+                    memcpy_signal = memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
+                    if(r==0){
+                      prev_memcpy_signal = memcpy_signal;
+                    } else {
+                      prev_memcpy_signal = control_and(ValueRange{prev_memcpy_signal, memcpy_signal});
+                    }
+                  }
+                  await_op(ValueRange{ prev_compute_signal, prev_memcpy_signal} );
                 } else {
                   await_op(ValueRange{prev_compute_signal});
                 }
@@ -855,33 +940,28 @@ void MLIRGenImpl::scaleSimGenerator(){
                     if(c!=col_this_fold-1 && r!=row_this_fold-1){
                       compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                         ifmap_flight[r][c], ofmap_flight[r][c], 
-                        ibuffer2s[r][c+1], obuffer2s[r+1][c], obuffer}, 
+                        ibuffer2s[r][c+1], obuffer2s[r+1][c]}, 
                         [&](ValueRange ins){
                         ifmap = ins[0];
                         write_op(ifmap, ins[2]);
                         ofmap = ins[1];
-                        if( r+c <= t && // too early, nothing to pass
-                            c > t-e2-row_this_fold // too late, nothing to pass
+                        if( r+c+1 < t && // too early, nothing to pass
+                            c >= t-e2-row_this_fold // too late, nothing to pass
                         ){
-                          write_op(ofmap, ins[4], c);
-                        } else{
-                          write_op(ofmap, ins[3], 2);
+                          write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, 2);
                         }
                         return_op(ValueRange{});
                       })[0];
                     } else if( c==col_this_fold-1 && r!=row_this_fold-1 ){// compute
                       compute_signal = LaunchOpBuilder(start_compute_signal, procs[r][c], ValueRange{
                         ofmap_flight[r][c], 
-                        obuffer2s[r+1][c], obuffer}, 
+                        obuffer2s[r+1][c]}, 
                         [&](ValueRange ins){
                         ofmap = ins[0];
-                        if( r+c <= t && // too early, nothing to pass
-                            c > t-e2-row_this_fold && // too late, nothing to pass
-                            t%e_fresh_px == 0
+                        if( r+c+1 < t && // too early, nothing to pass
+                            c >= t-e2-row_this_fold // too late, nothing to pass
                         ){
-                          write_op(ofmap, ins[2], c);
-                        } else{
-                          write_op(ofmap, ins[1], 2);
+                          write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, 2);
                         }
                         return_op(ValueRange{});
                       })[0];
@@ -893,11 +973,10 @@ void MLIRGenImpl::scaleSimGenerator(){
                         ifmap = ins[0];
                         write_op(ifmap, ins[2]);
                         ofmap = ins[1];
-                        if( r+c <= t && // too early, nothing to pass
-                            c > t-e2-row_this_fold&&// too late, nothing to pass
-                            t%e_fresh_px == 0
-                        ){
-                          write_op(ofmap, ins[3], c);
+                        if(t > c + r + 1 &&
+                          t <= c + e2 + row_this_fold){
+                          //llvm::outs()<<t<<": "<<r<<" "<<c<<"\n";
+                          write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, c);
                         }
                         return_op(ValueRange{});
                       })[0];
@@ -907,11 +986,10 @@ void MLIRGenImpl::scaleSimGenerator(){
                         obuffer}, 
                         [&](ValueRange ins){
                         ofmap = ins[0];
-                        if( r+c <= t && // too early, nothing to pass
-                            c > t-e2-row_this_fold&&// too late, nothing to pass
-                            t%e_fresh_px == 0
-                        ){
-                          write_op(ofmap, ins[1], c);
+                        if(t > c + r + 1 &&
+                          t <= c + e2 + row_this_fold){
+                          //llvm::outs()<<t<<": "<<r<<" "<<c<<"\n";
+                          write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, c);
                         }
                         return_op(ValueRange{});
                       })[0];
@@ -938,6 +1016,8 @@ void MLIRGenImpl::scaleSimGenerator(){
   }
   await_op(ValueRange{res[0]});
   std_ret();
+  //return;
+
   /// ------ end ---------
   theModule.print(llvm::outs());
   llvm::outs()<<"\n";

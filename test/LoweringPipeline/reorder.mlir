@@ -1,10 +1,10 @@
 #map0 = affine_map<(d0, d1, d2, d3) -> (d0 * 600 + d1 * 60 + d2 * 6 + d3)>
 #map1 = affine_map<() -> (0)>
-#map2 = affine_map<() -> (6)>
-#map3 = affine_map<() -> (3)>
-#map4 = affine_map<() -> (8)>
-#map5 = affine_map<() -> (10)>
-#map6 = affine_map<() -> (1)>
+#map2 = affine_map<() -> (12)>
+#map3 = affine_map<() -> (14)>
+#map4 = affine_map<() -> (10)>
+#map5 = affine_map<() -> (54)>
+#map6 = affine_map<() -> (64)>
 
 
 module {
@@ -28,20 +28,19 @@ module {
       %12 = "equeue.alloc"(%9) {data_bit = 32 : i64, shape = dense<[1, 8, 8, 10]> : tensor<4xi64>} : (i32) -> memref<1x8x8x10xf32>
       "equeue.add_comp_field"(%arg0, %12) {names = "obuffer "} : (i32, memref<1x8x8x10xf32>) -> ()
       %13 = subview %10[0, 0, 0, 0] [1, 8, 8, 6] [1, 1, 1, 1]  : memref<1x10x10x6xf32> to memref<1x8x8x6xf32, #map0>
-      affine.for %arg1 = 0 to 1 {
-        affine.for %arg2 = 0 to 10 {
-          affine.for %arg3 = 0 to 8 {
-            affine.for %arg4 = 0 to 8 {
-              affine.for %arg5 = 0 to 3 {
-                affine.for %arg6 = 0 to 3 {
-                  affine.for %arg7 = 0 to 6 {
-                    %14 = "equeue.read"(%13) {bank = 0 : i64, size = dense<1> : tensor<1xi64>} : (memref<1x8x8x6xf32, #map0>) -> f32
-                    %15 = "equeue.read"(%11) {bank = 0 : i64, size = dense<1> : tensor<1xi64>} : (memref<3x3x6x10xf32>) -> f32
-                    %16 = "equeue.read"(%12) {bank = 0 : i64, size = dense<1> : tensor<1xi64>} : (memref<1x8x8x10xf32>) -> f32
-                    %17 = "equeue.unkOp"(%16, %14, %15) {op_name = "mac"} : (f32, f32, f32) -> f32
-                    "equeue.write"(%17, %12) {bank = 0 : i64} : (f32, memref<1x8x8x10xf32>) -> ()
-                  }
-                }
+      affine.for %arg1 = 0 to 64 step 14 {
+        affine.for %arg2 = 0 to 54 step 12 {
+          affine.for %arg3 = 0 to 10 {
+            %c0 = constant 0 : index
+            affine.for %arg4 = 0 to 14 {
+              %c0_0 = constant 0 : index
+              affine.for %arg5 = 0 to 12 {
+                %c0_1 = constant 0 : index
+                %14 = "equeue.read"(%13) {bank = 0 : i64, size = dense<1> : tensor<1xi64>} : (memref<1x8x8x6xf32, #map0>) -> f32
+                %15 = "equeue.read"(%11) {bank = 0 : i64, size = dense<1> : tensor<1xi64>} : (memref<3x3x6x10xf32>) -> f32
+                %16 = "equeue.read"(%12) {bank = 0 : i64, size = dense<1> : tensor<1xi64>} : (memref<1x8x8x10xf32>) -> f32
+                %17 = "equeue.unkOp"(%16, %14, %15) {op_name = "mac"} : (f32, f32, f32) -> f32
+                "equeue.write"(%17, %12) {bank = 0 : i64} : (f32, memref<1x8x8x10xf32>) -> ()
               }
             }
           }

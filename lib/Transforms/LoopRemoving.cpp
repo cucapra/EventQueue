@@ -48,7 +48,7 @@
 
 #include "EQueue/EQueueOps.h"
 
-#define DEBUG_TYPE "structure-matching"
+#define DEBUG_TYPE "loop-removing"
 
 using namespace std;
 using namespace mlir;
@@ -102,7 +102,6 @@ namespace
               for (Operation &op : launchop.getOps()) {
                 if (isa<mlir::AffineForOp>(&op)){
                     bands.push_back(&op);
-                    //llvm::outs()<<op<<"\n";
                   }
               }
             }
@@ -167,7 +166,6 @@ namespace
 
                
                 if (ub_value - lb_value > op.getStep()){
-                    // llvm::outs() << "hello" << "\n";
                     //llvm::outs() << "condition not meet, continue" << "\n";
                     operation = walkRegions(operation->getRegions());
                     if(operation ==nullptr && i < bands.size() ){

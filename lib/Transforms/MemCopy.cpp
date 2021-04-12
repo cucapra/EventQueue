@@ -20,7 +20,7 @@ struct MemoryCopy : public PassWrapper<MemoryCopy, FunctionPass>  {
   ListOption<std::string> dma_names {*this, "dma", llvm::cl::desc("..."), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   ListOption<unsigned> indices {*this, "indices", llvm::cl::desc("indices in post order to decide where to insert memcpy"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
   ListOption<unsigned> insertion_points {*this, "insertions", llvm::cl::desc("insertion points"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
-  ListOption<unsigned> is_src {*this, "is-src", llvm::cl::desc("1 to denote load/store change to memcpy src, 0 otherwise"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
+  //ListOption<unsigned> is_src {*this, "is-src", llvm::cl::desc("1 to denote load/store change to memcpy src, 0 otherwise"), llvm::cl::ZeroOrMore, llvm::cl::MiscFlags::CommaSeparated};
  
   MemoryCopy() = default;
   MemoryCopy(const MemoryCopy& pass) {}
@@ -96,7 +96,7 @@ void MemoryCopy::runOnFunction() {
       }
     }
 
-    SmallVector<Operation *, 16> readWriteOps;
+    /*SmallVector<Operation *, 16> readWriteOps;
     if(is_src.size()==0 || is_src[i]){
       Value dest_defining = generic.getField(builder, region, dest_structs, 0, accel_original);
       Operation* userOp = dest_defining.getDefiningOp();
@@ -120,7 +120,7 @@ void MemoryCopy::runOnFunction() {
       }else{
         rw_op->setOperand(1, mem);
       }
-    }
+    }*/
     builder.setInsertionPoint(&region->front(), iter);
     auto src = generic.getField(builder, region, src_structs, 0, accel, accel_original);
     auto dest = generic.getField(builder, region, dest_structs, 0, accel, accel_original);
@@ -130,7 +130,6 @@ void MemoryCopy::runOnFunction() {
     memcpy_op(start_cpy, src, dest, dma);
  
   }
-  llvm::outs()<<launchOp<<"\n";
 
 }
 

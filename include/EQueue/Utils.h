@@ -15,6 +15,7 @@
 #include "EDSC/Intrinsics.h"
 
 #include "mlir/IR/AffineExpr.h"
+#include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
@@ -39,6 +40,7 @@
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 #include "mlir/Analysis/Liveness.h"
+
 
 #include <map>
 #include <string>
@@ -87,7 +89,7 @@ struct GenericStructure {
   GenericStructure()=default; 
   void buildIdMap(mlir::FuncOp &toplevel);
   Value getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value parent, Value original_parent );
-  Value getField(OpBuilder builder, Region *region, std::vector<std::string>& structs, unsigned j, Value original_parent );
+  Value getField(OpBuilder builder, std::vector<std::string>& structs, unsigned j, Value original_parent );
   //void runOnFunction() override;
 
   llvm::DenseMap<mlir::Value, mlir::Value> valueIds;
