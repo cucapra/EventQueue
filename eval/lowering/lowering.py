@@ -80,7 +80,7 @@ class scale:
         reorder = os.path.join(gen_p, "reorder.mlir")
         
         if dataflow=="ws":
-          os.system(self.executable+ ' --loop-reorder=\"orders=0,4,5,2,3,6,1\"  -merge-loop=\"indices=2,3,4\" -merge-loop=\"indices=0,1\" --loop-remove -cse \
+          os.system(self.executable+ ' --loop-reorder=\"orders=0,1,4,5,6,2,3\"  -merge-loop=\"indices=2,3,4\" -merge-loop=\"indices=0,1\" --loop-remove -cse \
             -loop-tile=\"tile-sizes=' +str(aw)+','+str(ah)+',1\" --simplify-affine-loop -simplify-affine-structures  \
             -affine-loop-unroll=\"unroll-factor=1\" ' + affine + ' > ' + reorder)
         if dataflow=="is":
@@ -110,8 +110,8 @@ class scale:
           max_cols_per_v_fold = int(max_parallel_conv * aw)
           num_v_fold = int(math.ceil( num_filter / max_cols_per_v_fold))
           
-          row_this_fold = ah #int(math.ceil(num_filter/num_v_fold))
-          col_this_fold = aw #int(math.ceil(px_per_conv/num_h_fold))
+          row_this_fold = int(math.ceil(px_per_conv/num_h_fold)) #ah
+          col_this_fold = int(math.ceil(num_filter/num_v_fold)) #aw
           
           os.system(self.executable+ ' --add-loop="indices=8 loops="'+str(aw)+' --add-loop="indices=9 loops="'+str(ah)+' \
           -mem-copy="src=pe_array@pe_wbuffer dest=pe_array[+1][:]@pe_wbuffer dma=pe_array@dma indices=10 insertions=0" -simplify-affine-structures \
@@ -130,8 +130,8 @@ class scale:
           max_cols_per_v_fold = int(max_parallel_conv * aw)
           num_v_fold = int(math.ceil( e2 / max_cols_per_v_fold))
           
-          row_this_fold = ah #int(math.ceil(e2/num_v_fold))
-          col_this_fold = aw #int(math.ceil(px_per_conv/num_h_fold))
+          row_this_fold = int(math.ceil(px_per_conv/num_h_fold)) #ah
+          col_this_fold = int(math.ceil(e2/num_v_fold))  #aw
           
           os.system(self.executable+ ' --add-loop="indices=8 loops="'+str(aw)+' --add-loop="indices=9 loops="'+str(ah)+' \
           -mem-copy="src=pe_array@pe_ibuffer dest=pe_array[+1][:]@pe_ibuffer dma=pe_array@dma indices=10 insertions=0" -simplify-affine-structures \
@@ -148,13 +148,13 @@ class scale:
           num_h_fold = int(math.ceil( e2 / ah)) 
           num_v_fold = int(math.ceil( num_filter / aw))
           
-          row_this_fold = ah #int(math.ceil(e2/num_v_fold))
-          col_this_fold = aw #int(math.ceil(num_filter/num_h_fold))
+          row_this_fold = ah #int(math.ceil(e2/num_h_fold))
+          col_this_fold = aw #int(math.ceil(num_filter/num_v_fold))
           
-          last_width = int(num_filter%row_this_fold)
-          if last_width==0: last_width = row_this_fold
-          last_height = int(e2%col_this_fold)
-          if last_height==0: last_height = col_this_fold
+          last_height = int(e2%row_this_fold)
+          if last_height==0: last_height = row_this_fold
+          last_width = int(num_filter%col_this_fold)
+          if last_width==0: last_width = col_this_fold
           
           os.system(self.executable+ ' --match-equeue-structure="indices=11 structs-names=pe_array@proc" -mem-copy="src=pe_array@pe_wbuffer \
             dest=pe_array[+1][:]@pe_wbuffer dma=pe_array@proc indices=11 insertions=0" -merge-memcpy-launch="launch=0 memcpy=0" ' + reassign_buffer +" > " + weight)
@@ -181,11 +181,12 @@ class scale:
         os.system(self.executable+ " " + reassign_buffer_scf+" -simulate " + "-json " + os.path.join(json_p, "linalg.out") +" >> " + csv_path)
         
         os.system(self.executable+ " " + unroll+" -simulate " + "-json " + os.path.join(json_p, "linalg.out") +" >> " + csv_path)
-
-
+        ########generator comparison##############
+        output_name = os.path.join(gen_p, "standard.mlir")
+        os.system(self.executable+" -generate=1 "+" -config "+config_p+" > "+output_name)
+        os.system(self.executable+ " " + output_name+" -simulate " + "-json " + os.path.join(json_p,"standard.out") +" >> " + csv_path)
+    
     def run_sweep(self):
-
-
         arr_h_list = [4]
         arr_w_list = [4]
         sram_sz_list = [108]

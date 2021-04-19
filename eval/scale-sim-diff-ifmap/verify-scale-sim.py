@@ -52,7 +52,7 @@ class scale:
 
         f.close()
         output_name = os.path.join(self.eval_dir,"generation", "gen_"+offset+".mlir")
-        os.system(self.executable+" -generate "+" -config "+config_p+" > "+output_name)
+        os.system(self.executable+" -generate=1 "+" -config "+config_p+" > "+output_name)
         os.system(self.executable+ " " + output_name+" -simulate " + "-json " + json_p +" >> " + self.csv_path)
       
 
@@ -83,7 +83,7 @@ class scale:
         if not os.path.exists(os.path.join(self.eval_dir,"json")):
             os.system("mkdir "+os.path.join(self.eval_dir,"json"));
             
-        self.csv_path = os.path.join(self.eval_dir, "summary.csv")
+        self.csv_path = os.path.join(self.eval_dir, "summary-os.csv")
         
         if not os.path.exists(self.csv_path):
           os.system("echo 'exec_time,cycles,sram_read_total,sram_write_total,reg_read_total,reg_write_total,sram_read,sram_write,reg_read,reg_write'>" + self.csv_path)
