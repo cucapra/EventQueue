@@ -127,12 +127,10 @@ void MLIRGenImpl::fir16Kernel(){
   SmallVector<Value, 16> aie;
   for (int i = 0 ; i < 16; i++){
     Value proc = create_proc("AIEngine");
-    Value dma0 = create_dma();
-    Value dma1 = create_dma();
     Value data = create_mem(ArrayRef<int64_t>{16}, 32, "RegisterFile");//delay line
     Value taps = create_mem(ArrayRef<int64_t>{8}, 32, "RegisterFile");//coeff
     Value acc = create_mem(ArrayRef<int64_t>{4}, 32, "RegisterFile");//coeff
-    aie.push_back(create_comp(ArrayRef<std::string>{"proc", "data", "taps", "acc", "dma0", "dma1"}, ValueRange{proc, data, taps, acc, dma0, dma1}) );
+    aie.push_back(create_comp(ArrayRef<std::string>{"proc", "data", "taps", "acc"}, ValueRange{proc, data, taps, acc}) );
   }
   
   
@@ -261,12 +259,10 @@ void MLIRGenImpl::fir16LimitedKernel(){
   SmallVector<Value, 16> aie;
   for (int i = 0 ; i < 16; i++){
     Value proc = create_proc("AIEngine");
-    Value dma0 = create_dma();
-    Value dma1 = create_dma();
     Value data = create_mem(ArrayRef<int64_t>{16}, 32, "RegisterFile");//delay line
     Value taps = create_mem(ArrayRef<int64_t>{8}, 32, "RegisterFile");//coeff
     Value acc = create_mem(ArrayRef<int64_t>{4}, 32, "RegisterFile");//coeff
-    aie.push_back(create_comp(ArrayRef<std::string>{"proc", "data", "taps", "acc", "dma0", "dma1"}, ValueRange{proc, data, taps, acc, dma0, dma1}) );
+    aie.push_back(create_comp(ArrayRef<std::string>{"proc", "data", "taps", "acc"}, ValueRange{proc, data, taps, acc}) );
   }
   
   

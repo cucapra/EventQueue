@@ -154,49 +154,9 @@ void MLIRGenImpl::scaleSimGenerator(){
           int row_this_fold = ceil((float)e2/ 
               ceil((float)e2 /
               (float)accel_config.array_height) );
-
-          //if(t>= num_v_fold*num_h_fold*px_per_conv) col_this_fold = last_width;
-          //if(t>= num_v_fold*num_h_fold*px_per_conv+last_width*px_per_conv) row_this_fold = last_height;
           
           Value start_cpy = start_op();
           Value c0 = std_constant_index(0);
-          
-          /*
-          Value col_cpy_end, prev_col_cpy;
-          bool empty_col = true;
-          bool first = true;
-          for(int c = 0; c < col_this_fold; c++){
-            if(t>=c && t+col_this_fold-c < num_v_fold*num_h_fold*px_per_conv + 
-            last_width + last_height){
-              col_cpy_end = start_cpy;//memcpy_op(start_cpy, wbuffer, wbuffer2s[0][c], dma_cols[c], ArrayRef<int64_t>{1}, c, 0);
-              if(!first){
-                prev_col_cpy = control_and(ValueRange{col_cpy_end, prev_col_cpy});
-              }else{
-                prev_col_cpy = col_cpy_end;
-                first = false;
-              }
-              empty_col = false;
-            }
-          }
-          Value row_cpy_end, prev_row_cpy;
-          bool empty_row = true;
-          first = true;
-          for(int r = 0; r < row_this_fold; r++){
-            if(t>=r && t+row_this_fold-r < num_v_fold*num_h_fold*px_per_conv + 
-            last_width + last_height){
-              row_cpy_end = start_cpy;//memcpy_op(start_cpy, ibuffer, ibuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
-              if(!first){
-                prev_row_cpy = control_and(ValueRange{row_cpy_end, prev_row_cpy});
-              }else{
-                prev_row_cpy = row_cpy_end;
-                first = false;
-              }
-              empty_row = false;
-            }
-          }
-          if(!empty_row && !empty_col) await_op(ValueRange{prev_row_cpy, prev_col_cpy});
-          if(!empty_row && empty_col) await_op(ValueRange{prev_row_cpy});
-          if(empty_row && !empty_col) await_op(ValueRange{prev_col_cpy});*/
           
           
           Value start_compute_signal = start_op();
@@ -629,8 +589,9 @@ void MLIRGenImpl::scaleSimGenerator(){
                   }
                 }
                 //await_op(ValueRange{prev_input_cpy});
-                
-                if(t==row_this_fold - 1){
+                Value memcpy_signal = memcpy_op(start_cpy, wbuffer, wbuffer2s[t][0], dma_rows[t], ArrayRef<int64_t>{1}, col_this_fold+t, 1);
+                await_op(ValueRange{prev_input_cpy, memcpy_signal});
+                /*if(t==row_this_fold - 1){
                   Value memcpy_signal, prev_memcpy_signal;
                   for(int r = 0; r < row_this_fold; r++){//par_for
                     memcpy_signal = memcpy_op(start_cpy, wbuffer, wbuffer2s[r][0], dma_rows[r], ArrayRef<int64_t>{1}, col_this_fold+r, 1);
@@ -643,7 +604,7 @@ void MLIRGenImpl::scaleSimGenerator(){
                   await_op(ValueRange{prev_input_cpy, prev_memcpy_signal});
                 }else{
                   await_op(ValueRange{prev_input_cpy});
-                }
+                }*/
               }
               // computing starts
               //--------------------------------------------------
