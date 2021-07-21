@@ -162,9 +162,7 @@ res =
             }
           }
 
-          for (int t = 0;
-               t < layer_config.num_filter + row_this_fold + col_this_fold;
-               t++) {
+          for (int t = 0; t < layer_config.num_filter + row_this_fold + col_this_fold; t++) {
             Value compute_signal, prev_compute_signal;
             Value start_compute_signal = start_op();
             SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, ofmap_flight;
@@ -225,8 +223,7 @@ res =
                         ifmap = ins[0];
                         write_op(ifmap, ins[2], ArrayRef<int64_t>{1});
                         ofmap = ins[1];
-                        if (t > c + r + 1 &&
-                            t <= c + layer_config.num_filter + row_this_fold) {
+                        if (t > c + r + 1 && t <= c + layer_config.num_filter + row_this_fold) {
                           write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, 2);
                         }
                         return_op(ValueRange{});
@@ -237,8 +234,7 @@ res =
                       ValueRange{ofmap_flight[r][c], obuffer2s[r + 1][c]},
                       [&](ValueRange ins) {
                         ofmap = ins[0];
-                        if (t > c + r + 1 &&
-                            t <= c + layer_config.num_filter + row_this_fold) {
+                        if (t > c + r + 1 && t <= c + layer_config.num_filter + row_this_fold) {
                           write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, 2);
                         }
                         return_op(ValueRange{});
@@ -252,8 +248,7 @@ res =
                         ifmap = ins[0];
                         write_op(ifmap, ins[2], ArrayRef<int64_t>{1});
                         ofmap = ins[1];
-                        if (t > c + r + 1 &&
-                            t <= c + layer_config.num_filter + row_this_fold) {
+                        if (t > c + r + 1 && t <= c + layer_config.num_filter + row_this_fold) {
                           write_op(ofmap, ins[3], ArrayRef<int64_t>{1}, c);
                         }
                         return_op(ValueRange{});
@@ -264,8 +259,7 @@ res =
                       ValueRange{ofmap_flight[r][c], obuffer},
                       [&](ValueRange ins) {
                         ofmap = ins[0];
-                        if (t > c + r + 1 &&
-                            t <= c + layer_config.num_filter + row_this_fold) {
+                        if (t > c + r + 1 && t <= c + layer_config.num_filter + row_this_fold) {
                           write_op(ofmap, ins[1], ArrayRef<int64_t>{1}, c);
                         }
                         return_op(ValueRange{});

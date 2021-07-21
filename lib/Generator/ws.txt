@@ -163,7 +163,6 @@ res =
           }
 
           for (int t = 0; t < e2 + row_this_fold + col_this_fold; t++) {
-
             Value compute_signal, prev_compute_signal;
             Value start_compute_signal = start_op();
             SmallVector<SmallVector<Value, 20>, 20> ifmap_flight, ofmap_flight;
