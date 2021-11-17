@@ -1,6 +1,8 @@
 #ifndef EQUEUEDIALECT_GENERATOR_H
 #define EQUEUEDIALECT_GENERATOR_H
 
+#include <fstream>
+#include <iostream>
 #include "EQueue/EQueueDialect.h"
 #include "EQueue/EQueueOps.h"
 #include "EQueue/EQueueTraits.h"
@@ -27,9 +29,22 @@
 #include "mlir/Dialect/StandardOps/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Vector/EDSC/Intrinsics.h"
 
-#include "llvm/Support/raw_ostream.h"
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/IR/Module.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include <math.h> 
+
+static llvm::cl::opt<std::string>
+    configFilename("config", llvm::cl::desc("Config filename"),
+                   llvm::cl::value_desc("input configuration filename"), llvm::cl::init(""));
 
 struct layerConfig {
   int channel = 6;
@@ -85,62 +100,82 @@ struct accelConfig {
 class MLIRGenImpl {
 public:
   MLIRGenImpl(mlir::MLIRContext &context) : builder(&context) {}
-  void loadConfiguration(std::stringstream &instream){
-  
-    std::string instr;
-    int number;
-    while(instream>>instr){
-      if(instr=="[Accelerator]") continue;
-      else if(instr=="ArrayHeight:"){
-        instream>>number;
-        accel_config.array_height=number;
-      }else if(instr=="ArrayWidth:"){
-        instream>>number;
-        accel_config.array_width=number;
-      }else if(instr=="IfmapSramSz:"){
-        instream>>number;
-        accel_config.ifmap_sram=number;
-      }else if(instr=="FilterSramSz:"){
-        instream>>number;
-        accel_config.filter_sram=number;
-      }else if(instr=="OfmapSramSz:"){
-        instream>>number;
-        accel_config.ofmap_sram=number;
-      }else if(instr=="Dataflow:"){
-        instream>>instr;
-        if(instr=="ws"){
-          accel_config.dataflow=DataFlow::WS;
-        } else if(instr=="os"){
-          accel_config.dataflow=DataFlow::OS;
-        } else if(instr=="is"){
-          accel_config.dataflow=DataFlow::IS;
-        } else {
-          llvm_unreachable("invalid for dataflow");
-        }
-      }else if(instr=="[Network]"){
-
-        break;
-      }else{
-        llvm_unreachable("invalid input configuartion");
-      }
+  void equeueGenerator(std::string &gen){
+    if (gen ==  "systolicArrayGenerator"){
+	      if (configFilename!=""){ 
+	        loadConfiguration(configFilename);
+	      }
+        systolicArrayGenerator();
+    } else if (gen == "firSingleKernel"){
+        firSingleKernel();
+    } else{
+        llvm::errs()<<"No such implementation!\n";
     }
+  }
     
+  void loadConfiguration(std::string &config_fn){
+    std::ifstream config_fp(config_fn);
+    if ( config_fp ) {
+        std::stringstream instream;
+        instream << config_fp.rdbuf();
+        std::string instr;
+        int number;
+        while(instream>>instr){
+          if(instr=="[Accelerator]") continue;
+          else if(instr=="ArrayHeight:"){
+            instream>>number;
+            accel_config.array_height=number;
+          }else if(instr=="ArrayWidth:"){
+            instream>>number;
+            accel_config.array_width=number;
+          }else if(instr=="IfmapSramSz:"){
+            instream>>number;
+            accel_config.ifmap_sram=number;
+          }else if(instr=="FilterSramSz:"){
+            instream>>number;
+            accel_config.filter_sram=number;
+          }else if(instr=="OfmapSramSz:"){
+            instream>>number;
+            accel_config.ofmap_sram=number;
+          }else if(instr=="Dataflow:"){
+            instream>>instr;
+            if(instr=="ws"){
+              accel_config.dataflow=DataFlow::WS;
+            } else if(instr=="os"){
+              accel_config.dataflow=DataFlow::OS;
+            } else if(instr=="is"){
+              accel_config.dataflow=DataFlow::IS;
+            } else {
+              llvm_unreachable("invalid for dataflow");
+            }
+          }else if(instr=="[Network]"){
 
-    instream>>number;
-    layer_config.ifmap_height = number;//7
-    instream>>number;
-    layer_config.ifmap_width = number;//7
-    instream>>number;
-    layer_config.filter_height = number;
-    instream>>number;
-    layer_config.filter_width = number;
-    instream>>number;
-    layer_config.channel = number;
-    instream>>number;
-    layer_config.num_filter = number;//10
-    instream>>number;
-    layer_config.stride = number;
-    
+            break;
+          }else{
+            llvm_unreachable("invalid input configuartion");
+          }
+        }
+        
+
+        instream>>number;
+        layer_config.ifmap_height = number;//7
+        instream>>number;
+        layer_config.ifmap_width = number;//7
+        instream>>number;
+        layer_config.filter_height = number;
+        instream>>number;
+        layer_config.filter_width = number;
+        instream>>number;
+        layer_config.channel = number;
+        instream>>number;
+        layer_config.num_filter = number;//10
+        instream>>number;
+        layer_config.stride = number;
+      
+        config_fp.close();
+    } else {
+      llvm::errs() << "Cannot find configration file "<<configFilename.c_str()<<"!\n";
+    }
     
   }
   
@@ -148,11 +183,12 @@ public:
   void linalgGenerator1();
   void linalgGenerator2();
   void linalgGenerator3();
-  void scaleSimGenerator();
+  void systolicArrayGenerator();
   void firSingleKernel();
   void fir16Kernel();
   void fir16LimitedKernel();
   void firMultiKernel();
+  
   
   
 private:

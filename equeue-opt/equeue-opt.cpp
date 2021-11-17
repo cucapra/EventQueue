@@ -42,10 +42,10 @@
 #include "EQueue/CommandProcessor.h"
 #include "Generator/EQueueGenerator.h"
 
-static llvm::cl::opt<int> generateInputFile(
+static llvm::cl::opt<std::string> generate(
     "generate",
     llvm::cl::desc("generate the input file"),
-    llvm::cl::init(0));
+    llvm::cl::init(""));
 
 static llvm::cl::opt<bool> simulateInputFile(
     "simulate",
@@ -55,9 +55,7 @@ static llvm::cl::opt<bool> simulateInputFile(
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
-static llvm::cl::opt<std::string>
-    configFilename("config", llvm::cl::desc("Config filename"),
-                   llvm::cl::value_desc("input configuration filename"), llvm::cl::init(""));
+
 static llvm::cl::opt<std::string>
     jsonFilename("json", llvm::cl::desc("Json filename"),
                    llvm::cl::value_desc("json filename for file to log tracing (trace event format)"), llvm::cl::init("../test/out/out.json"));
@@ -168,24 +166,10 @@ int main(int argc, char **argv) {
     exit(1);
   }
   
-  if(generateInputFile>=1){
+  if(generate!=""){
     MLIRGenImpl generator(context);	  
+    generator.equeueGenerator(generate);
     
-    std::string config_fn;
-	  if (configFilename!=""){ config_fn = configFilename.c_str();
-	    std::ifstream config_fp(config_fn);
-	    if ( config_fp ) {
-          std::stringstream configBuffer;
-          configBuffer << config_fp.rdbuf();
-          generator.loadConfiguration(configBuffer);
-          config_fp.close();
-      } else {
-        llvm::errs() << "cannot find configration file"<<configFilename.c_str()<<"!\n";
-      }
-    }
-    if(generateInputFile==1) generator.scaleSimGenerator();
-    if(generateInputFile==2) generator.linalgGenerator3();
-    if(generateInputFile==3) generator.firMultiKernel();
   }
   else{
     // Set up the input file.

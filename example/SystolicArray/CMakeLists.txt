@@ -1,7 +1,6 @@
-add_mlir_dialect_library(EQueueGenerator
-        EQueueScaleSim.cpp
+add_mlir_dialect_library(SystolicArray
+        SystolicArray.cpp
         EQueueGenerator.cpp
-        EQueueFIR.cpp
         ADDITIONAL_HEADER_DIRS
         ${PROJECT_SOURCE_DIR}/include/EQueue
         ${PROJECT_SOURCE_DIR}/include/EDSC
