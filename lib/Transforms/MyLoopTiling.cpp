@@ -30,7 +30,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 using namespace mlir;
-using namespace mlir::equeue;
+using namespace equeue;
 #define DEBUG_TYPE "affine-loop-tile"
 
 namespace {
@@ -265,7 +265,7 @@ static void getTileableBands(FuncOp f,
     getPerfectlyNestedLoops(band, root);
     bands->push_back(band);
   };
-  for (xilinx::equeue::LaunchOp launchop: f.getOps<xilinx::equeue::LaunchOp>()){
+  for (equeue::LaunchOp launchop: f.getOps<equeue::LaunchOp>()){
     for (AffineForOp forOp : launchop.getOps<AffineForOp>()) {
       SmallVector<AffineForOp, 6> band;
       getPerfectlyNestedLoops(band, forOp);

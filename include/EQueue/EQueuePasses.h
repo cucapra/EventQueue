@@ -11,7 +11,7 @@
 #include <string>
 
 
-namespace mlir{
+using namespace mlir;
 namespace equeue {
     
 
@@ -37,8 +37,7 @@ void registerEqueueReadWritePass();
 void registerParallelToEQueuePass();
 void registerLowerExtractionPass();
 /// Generate the code for registering passes.
-}
-} // end namespace mlir
+} // end namespace equeue
 
-#endif // EQUEUE_STRUCTURE_MATCHING_H
+#endif // EQUEUE_PASSES_H
 

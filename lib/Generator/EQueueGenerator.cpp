@@ -49,7 +49,7 @@ void MLIRGenImpl::simpleGenerator(){
   
   //XXX(Zhijing): not sure why we cannot use aliasing here
   Value signal = start_op();
-  //builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+  //builder.create<equeue::ControlStartOp>(f.getLoc()).getResult();
   auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
     [&](ValueRange ins){
       accel = ins[0];
@@ -64,7 +64,7 @@ void MLIRGenImpl::simpleGenerator(){
       Value obuffer = alloc_op(sram, ArrayRef<int64_t>{ 3,3 }, "f32", f32Type);
       write_op(ifmap, ibuffer);
       write_op(filter, wbuffer);
-      //Value start_cpy = builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+      //Value start_cpy = builder.create<equeue::ControlStartOp>(f.getLoc()).getResult();
       Value start_cpy = start_op();
       Value pe = accel;
       SmallVector<Value, 5> pes, mems, procs;
@@ -213,7 +213,7 @@ void MLIRGenImpl::linalgGenerator1(){
   
   //XXX(Zhijing): not sure why we cannot use aliasing here
   Value signal = start_op();
-  //builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+  //builder.create<equeue::ControlStartOp>(f.getLoc()).getResult();
   auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
     [&](ValueRange ins){
       accel = ins[0];
@@ -423,7 +423,7 @@ void MLIRGenImpl::linalgGenerator2(){
   
   //XXX(Zhijing): not sure why we cannot use aliasing here
   Value signal = start_op();
-  //builder.create<xilinx::equeue::ControlStartOp>(f.getLoc()).getResult();
+  //builder.create<equeue::ControlStartOp>(f.getLoc()).getResult();
   auto res = LaunchOpBuilder(signal, processor, ValueRange{accel, f.getArgument(0), f.getArgument(1)}, 
     [&](ValueRange ins){
       accel = ins[0];
@@ -514,7 +514,7 @@ void MLIRGenImpl::linalgGenerator3(){
   Value proc, mem, comp;
   proc = create_proc("AIEngine");
   mem = create_mem(ArrayRef<int64_t>{ 3 }, 32, "RegisterFile", 1);
-  Value dma = builder.create<xilinx::equeue::CreateDMAOp>(func.getLoc()).getResult();
+  Value dma = builder.create<equeue::CreateDMAOp>(func.getLoc()).getResult();
   comp = create_comp(ArrayRef<std::string>{"proc", "mem", "dma"}, ValueRange{proc, mem, dma});
   comp = std_splat( comp, VectorType::get(peShape, comp.getType()) );
   //comp = create_comp("pe_array", comp);

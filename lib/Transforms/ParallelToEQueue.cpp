@@ -43,7 +43,7 @@ void ParallelToEQueue::runOnFunction() {
 
   //if(!indices.empty()) parallelIndices = indices.vec();
   f.walk([&](Operation* op) {
-    if(isa<xilinx::equeue::MemCopyOp>(op) || isa<xilinx::equeue::LaunchOp>(op)){
+    if(isa<equeue::MemCopyOp>(op) || isa<equeue::LaunchOp>(op)){
       if(isa<AffineParallelOp>(op->getParentOp()) && regions.count(op->getParentRegion())==0){
         regions.insert(op->getParentRegion());
       }
@@ -109,7 +109,7 @@ void ParallelToEQueue::runOnFunction() {
     builder.setInsertionPoint(&firstBlock->back());
     Value signal=Value(), prev_signal=Value();
     for(auto &op: firstBlock->getOperations()){
-      if(isa<xilinx::equeue::LaunchOp>(op) || isa<xilinx::equeue::MemCopyOp>(op)){
+      if(isa<equeue::LaunchOp>(op) || isa<equeue::MemCopyOp>(op)){
         signal=op.getResult(0);
         if(prev_signal==Value()){
           prev_signal = signal;

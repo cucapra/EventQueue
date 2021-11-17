@@ -39,14 +39,14 @@ void getReadWriteOp(Operation *userOp, Region* region, SmallVector<Operation *, 
     if(dyn_cast<linalg::ReshapeOp>(u) || dyn_cast<SubViewOp>(u) ){
       getReadWriteOp(u, region, readWriteOps, valueIds);
     }
-    if(dyn_cast<xilinx::equeue::AddCompOp>(u)){
+    if(dyn_cast<equeue::AddCompOp>(u)){
       for(auto iter = valueIds.begin(); iter != valueIds.end(); iter++){
         if(iter->second==userOp->getResult(0) && iter->second!=iter->first){
           getReadWriteOp(iter->first.getDefiningOp(), region, readWriteOps, valueIds);
         }
       }
     }
-    else if(dyn_cast<xilinx::equeue::MemReadOp>(u) || dyn_cast<xilinx::equeue::MemWriteOp>(u)){
+    else if(dyn_cast<equeue::MemReadOp>(u) || dyn_cast<equeue::MemWriteOp>(u)){
       if(u->getParentRegion()==region)
         readWriteOps.push_back(u);
     }
@@ -77,8 +77,8 @@ void ReassignBuffer::runOnFunction() {
   std::vector<std::vector<std::string>> new_buffers;
   trancate(new_buffers, new_buffer_names);
   
-  xilinx::equeue::LaunchOp launchOp;
-  for(xilinx::equeue::LaunchOp op : f.getOps<xilinx::equeue::LaunchOp>()){
+  equeue::LaunchOp launchOp;
+  for(equeue::LaunchOp op : f.getOps<equeue::LaunchOp>()){
     launchOp = op;
     break;
   }
@@ -101,7 +101,7 @@ void ReassignBuffer::runOnFunction() {
       Value mem;
       builder.setInsertionPoint(rw_op);
       mem = generic.getField(builder, region, new_buffer, 0, accel, accel_original);
-      if(dyn_cast<xilinx::equeue::MemReadOp>(rw_op)){
+      if(dyn_cast<equeue::MemReadOp>(rw_op)){
         rw_op->setOperand(0, mem);
       }else{
         rw_op->setOperand(1, mem);

@@ -119,28 +119,28 @@ mlir::OwningModuleRef loadFileAndProcessModule(mlir::MLIRContext &context) {
 int main(int argc, char **argv) {
   mlir::registerAllDialects();
   mlir::registerAllPasses();
-  mlir::equeue::registerStructureMatchingPass();
-  mlir::equeue::registerSplitLaunchPass();
-  mlir::equeue::registerTilingPass();
-  mlir::equeue::registerParallelizePass();
-  mlir::equeue::registerAllocatePass();
-  mlir::equeue::registerReassignBufferPass();
-  mlir::equeue::registerMemCopyPass();
-  mlir::equeue::registerMemCopyToLaunchPass();
-  mlir::equeue::registerMergeMemCopyLaunchPass();
-  mlir::equeue::registerLoopRemovingPass();
-  mlir::equeue::registerSimplifyAffineLoopPass();
-  mlir::equeue::registerLoopReorderPass();
-  mlir::equeue::registerAddLoopPass();
-  mlir::equeue::registerMergeLoopPass();
-  mlir::equeue::registerModifyLoopPass();
-  mlir::equeue::registerEqueueReadWritePass();
-  mlir::equeue::registerSystolicArrayPass();
-  mlir::equeue::registerParallelToEQueuePass();
-  mlir::equeue::registerLowerExtractionPass();
+  equeue::registerStructureMatchingPass();
+  equeue::registerSplitLaunchPass();
+  equeue::registerTilingPass();
+  equeue::registerParallelizePass();
+  equeue::registerAllocatePass();
+  equeue::registerReassignBufferPass();
+  equeue::registerMemCopyPass();
+  equeue::registerMemCopyToLaunchPass();
+  equeue::registerMergeMemCopyLaunchPass();
+  equeue::registerLoopRemovingPass();
+  equeue::registerSimplifyAffineLoopPass();
+  equeue::registerLoopReorderPass();
+  equeue::registerAddLoopPass();
+  equeue::registerMergeLoopPass();
+  equeue::registerModifyLoopPass();
+  equeue::registerEqueueReadWritePass();
+  equeue::registerSystolicArrayPass();
+  equeue::registerParallelToEQueuePass();
+  equeue::registerLowerExtractionPass();
 
   // Register equeue passes here.
-  mlir::registerDialect<xilinx::equeue::EQueueDialect>();
+  mlir::registerDialect<equeue::EQueueDialect>();
 
   llvm::InitLLVM y(argc, argv);
 
@@ -210,7 +210,7 @@ int main(int argc, char **argv) {
 	    if (jsonFilename.c_str()) json_fn = jsonFilename.c_str();
 	    std::ofstream json_fp(json_fn);
 	    std::stringstream traceStream;
-	    acdc::CommandProcessor proc(traceStream);
+	    CommandProcessor proc(traceStream);
 	    proc.run(module.get());
       json_fp << traceStream.str();
     }else{

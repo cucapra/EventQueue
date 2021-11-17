@@ -15,7 +15,7 @@ struct EQueueReadOpConversion : public OpRewritePattern<AffineLoadOp> {
                                 PatternRewriter &rewriter) const override {
                                 
     auto loc = op.getLoc();
-    Value readOp = rewriter.create<xilinx::equeue::MemReadOp>(loc, op.getOperand(0), ArrayRef<int64_t>{1});
+    Value readOp = rewriter.create<equeue::MemReadOp>(loc, op.getOperand(0), ArrayRef<int64_t>{1});
     rewriter.replaceOp(op, readOp);
     return success();
   }
@@ -30,7 +30,7 @@ struct EQueueWriteOpConversion : public OpRewritePattern<AffineStoreOp> {
                                 PatternRewriter &rewriter) const override {
                                 
     auto loc = op.getLoc();
-    rewriter.create<xilinx::equeue::MemWriteOp>(loc, op.getOperand(0),op.getOperand(1));
+    rewriter.create<equeue::MemWriteOp>(loc, op.getOperand(0),op.getOperand(1));
     rewriter.eraseOp(op);
     return success();
   }
@@ -55,7 +55,7 @@ void EqueueReadWritePass::runOnFunction() {
     patterns.insert<EQueueWriteOpConversion>(context);
     
     ConversionTarget target(getContext());
-    target.addLegalDialect<xilinx::equeue::EQueueDialect, StandardOpsDialect>();
+    target.addLegalDialect<equeue::EQueueDialect, StandardOpsDialect>();
 
     if (failed(applyPartialConversion(getFunction(), target,  std::move(patterns))))
       signalPassFailure();

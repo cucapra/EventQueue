@@ -15,30 +15,30 @@
 using namespace mlir;
 using namespace mlir::edsc;
 
-using create_dma = ValueBuilder<xilinx::equeue::CreateDMAOp>;
-using create_mem = ValueBuilder<xilinx::equeue::CreateMemOp>;
-using create_proc = ValueBuilder<xilinx::equeue::CreateProcOp>;
-using connection = ValueBuilder<xilinx::equeue::ConnectionOp>;
-using create_comp = ValueBuilder<xilinx::equeue::CreateCompOp>;
-using add_comp = OperationBuilder<xilinx::equeue::AddCompOp>;
-using get_comp = ValueBuilder<xilinx::equeue::GetCompOp>;
+using create_dma = ValueBuilder<equeue::CreateDMAOp>;
+using create_mem = ValueBuilder<equeue::CreateMemOp>;
+using create_proc = ValueBuilder<equeue::CreateProcOp>;
+using connection = ValueBuilder<equeue::ConnectionOp>;
+using create_comp = ValueBuilder<equeue::CreateCompOp>;
+using add_comp = OperationBuilder<equeue::AddCompOp>;
+using get_comp = ValueBuilder<equeue::GetCompOp>;
 
-using alloc_op = ValueBuilder<xilinx::equeue::MemAllocOp>;
-using dealloc_op = OperationBuilder<xilinx::equeue::MemDeallocOp>;
-using read_op = ValueBuilder<xilinx::equeue::MemReadOp>;
-using write_op = OperationBuilder<xilinx::equeue::MemWriteOp>;
-using memcpy_op = ValueBuilder<xilinx::equeue::MemCopyOp>;
+using alloc_op = ValueBuilder<equeue::MemAllocOp>;
+using dealloc_op = OperationBuilder<equeue::MemDeallocOp>;
+using read_op = ValueBuilder<equeue::MemReadOp>;
+using write_op = OperationBuilder<equeue::MemWriteOp>;
+using memcpy_op = ValueBuilder<equeue::MemCopyOp>;
 
 
-using unk_spec = ValueBuilder<xilinx::equeue::UnkownSpecificationOp>;
-using unk_op = ValueBuilder<xilinx::equeue::UnkownOp>;
+using unk_spec = ValueBuilder<equeue::UnkownSpecificationOp>;
+using unk_op = ValueBuilder<equeue::UnkownOp>;
 
-using return_op = OperationBuilder<xilinx::equeue::ReturnOp>;
+using return_op = OperationBuilder<equeue::ReturnOp>;
 
-using start_op = ValueBuilder<xilinx::equeue::ControlStartOp>;
-using control_and = ValueBuilder<xilinx::equeue::ControlAndOp>;
-using control_or = ValueBuilder<xilinx::equeue::ControlOrOp>;
-using await_op = OperationBuilder<xilinx::equeue::AwaitOp>;
+using start_op = ValueBuilder<equeue::ControlStartOp>;
+using control_and = ValueBuilder<equeue::ControlAndOp>;
+using control_or = ValueBuilder<equeue::ControlOrOp>;
+using await_op = OperationBuilder<equeue::AwaitOp>;
 
 
 

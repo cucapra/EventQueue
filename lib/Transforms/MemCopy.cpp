@@ -44,7 +44,7 @@ void getReadWriteOp(Operation *userOp, SmallVector<Operation *, 16>& readWriteOp
         if(dyn_cast<linalg::ReshapeOp>(u) || dyn_cast<SubViewOp>(u) ){
           getReadWriteOp(u, readWriteOps);
         }
-        else if(dyn_cast<xilinx::equeue::MemReadOp>(u) || dyn_cast<xilinx::equeue::MemWriteOp>(u)){
+        else if(dyn_cast<equeue::MemReadOp>(u) || dyn_cast<equeue::MemWriteOp>(u)){
           readWriteOps.push_back(u);
         }
       }
@@ -75,8 +75,8 @@ void MemoryCopy::runOnFunction() {
   std::vector<std::vector<std::string>> dmas;
   trancate(dmas, dma_names);
 
-  xilinx::equeue::LaunchOp launchOp;
-  for(xilinx::equeue::LaunchOp op : f.getOps<xilinx::equeue::LaunchOp>()){
+  equeue::LaunchOp launchOp;
+  for(equeue::LaunchOp op : f.getOps<equeue::LaunchOp>()){
     launchOp = op;
     break;
   }
@@ -115,7 +115,7 @@ void MemoryCopy::runOnFunction() {
       }else{
         mem = generic.getField(builder, region, dest_structs, 0, accel, accel_original);
       }
-      if(dyn_cast<xilinx::equeue::MemReadOp>(rw_op)){
+      if(dyn_cast<equeue::MemReadOp>(rw_op)){
         rw_op->setOperand(0, mem);
       }else{
         rw_op->setOperand(1, mem);
