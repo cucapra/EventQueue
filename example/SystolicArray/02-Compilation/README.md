@@ -217,7 +217,7 @@ bin/equeue-opt [systolic-ifmap].mlir \
 		--reassign-buffer="old-buffer=pe_array@pe_obuffer \
             	new-buffer=pe_array[+1][:]@pe_obuffer indices=13" \
             	--cse \
-			    > [systolic-ofmap].mlir
+		> [systolic-ofmap].mlir
 ```
 
 - For OS, _Fh * Fw * C_ ifmaps and weights are passed.
