@@ -28,7 +28,7 @@ Again we start with a **structural modeling** stage. This time, we show another 
 mem = create_mem({ 4 }, 32, "RegisterFile", 3)
 pe = create_comp({"mem", "proc"}, {mem, proc})
 dma = create_dma()
-pe = create_comp(ArrayRef<std::string>{"proc", "mem", "dma"}）
+pe = create_comp({"proc", "mem", "dma"}）
 pe_array = std_splat(pe, {14,12})//PE shape = 14x12
 ```
 
