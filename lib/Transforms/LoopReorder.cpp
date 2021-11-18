@@ -55,7 +55,7 @@ using namespace mlir;
 using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace mlir::edsc::ops;
-using namespace xilinx::equeue;
+using namespace equeue;
 
 
 

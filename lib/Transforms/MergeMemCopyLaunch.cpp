@@ -29,7 +29,7 @@ Value getReadOp(Region* region, Value src, llvm::DenseMap<mlir::Value, mlir::Val
     if(iter->second==valueIds[src] && iter->second!=iter->first){
       //iter->first: getCompOp
       for(auto u: iter->first.getDefiningOp()->getResult(0).getUsers()){
-        if(u->getParentRegion()==region && dyn_cast<xilinx::equeue::MemReadOp>(u)){
+        if(u->getParentRegion()==region && dyn_cast<equeue::MemReadOp>(u)){
           return u->getResult(0);
         }
       }
@@ -44,12 +44,12 @@ void MergeMemCopyLaunch::runOnFunction() {
   OpBuilder builder(&getContext());
   generic.buildIdMap(f);
   
-  SmallVector<xilinx::equeue::MemCopyOp, 16> memcpyOps;
-  f.walk([&](xilinx::equeue::MemCopyOp op) {
+  SmallVector<equeue::MemCopyOp, 16> memcpyOps;
+  f.walk([&](equeue::MemCopyOp op) {
     memcpyOps.push_back(op);
   });
-  SmallVector<xilinx::equeue::LaunchOp, 16> launchOps;
-  f.walk([&](xilinx::equeue::LaunchOp op) {
+  SmallVector<equeue::LaunchOp, 16> launchOps;
+  f.walk([&](equeue::LaunchOp op) {
     launchOps.push_back(op);
   });
   

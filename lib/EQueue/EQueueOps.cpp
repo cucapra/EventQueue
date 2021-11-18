@@ -30,7 +30,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
-using namespace xilinx::equeue;
+using namespace equeue;
 
 //===----------------------------------------------------------------------===//
 // CreateDMAOp 
@@ -546,9 +546,7 @@ void ControlOrOp::build(Builder builder, OperationState &result, ValueRange sign
 void AwaitOp::build(Builder builder, OperationState &result, ValueRange signals) {
   result.addOperands(signals);
 }
-namespace xilinx {
 namespace equeue {
 #define GET_OP_CLASSES
 #include "EQueue/EQueueOps.cpp.inc"
 } // namespace equeue
-} // namespace xilinx

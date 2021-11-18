@@ -49,8 +49,8 @@ void SystolicArrayPass::runOnFunction() {
     std::vector<std::vector<std::string>> launcher_list;
     trancate(launcher_list, launcher_names);
 
-    xilinx::equeue::LaunchOp launchOp;
-    for(xilinx::equeue::LaunchOp op : f.getOps<xilinx::equeue::LaunchOp>()){
+    equeue::LaunchOp launchOp;
+    for(equeue::LaunchOp op : f.getOps<equeue::LaunchOp>()){
       launchOp = op;
       break;
     }
@@ -90,7 +90,7 @@ void SystolicArrayPass::runOnFunction() {
     //patterns.insert<ParallelOpConversion>(original_region, context);
     
     //ConversionTarget target(getContext());
-    //target.addLegalDialect<xilinx::equeue::EQueueDialect, StandardOpsDialect>();
+    //target.addLegalDialect<equeue::EQueueDialect, StandardOpsDialect>();
 
     //if (failed(applyPartialConversion(f, target, patterns)))
     //  signalPassFailure();

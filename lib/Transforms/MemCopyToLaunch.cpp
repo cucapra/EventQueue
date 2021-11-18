@@ -48,9 +48,9 @@ void MemCopyToLaunch::runOnFunction() {
   OpBuilder builder(&getContext());
   //TODO: build value map first
   //generic.buildIdMap(f);
-  SmallVector<xilinx::equeue::MemCopyOp, 16> memcpyOps;
+  SmallVector<equeue::MemCopyOp, 16> memcpyOps;
   
-  f.walk([&](xilinx::equeue::MemCopyOp op) {
+  f.walk([&](equeue::MemCopyOp op) {
     memcpyOps.push_back(op);
   });
   

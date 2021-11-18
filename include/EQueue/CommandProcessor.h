@@ -27,7 +27,6 @@
 #include <string>
 #include <map>
 
-namespace acdc {
 
 typedef std::pair<mlir::Value, llvm::ArrayRef<int>> Value_t;
 
@@ -162,4 +161,3 @@ public:
 };
 
 
-}

@@ -26,8 +26,8 @@ void SplitLaunch::runOnFunction() {
 
     
     //pre-order transversal
-    llvm::SmallVector<xilinx::equeue::LaunchOp, 20> launchOps;
-    f.walk([&](xilinx::equeue::LaunchOp op) {
+    llvm::SmallVector<equeue::LaunchOp, 20> launchOps;
+    f.walk([&](equeue::LaunchOp op) {
       launchOps.push_back(op);
     });
     

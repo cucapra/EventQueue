@@ -18,7 +18,6 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 
 
-namespace xilinx {
 namespace equeue {
 
 
@@ -74,7 +73,7 @@ mlir::Type EQueueContainerType::getContainerType() {
   return getImpl()->getContainerType();
 }
 
-mlir::Type xilinx::equeue::EQueueDialect::parseType(DialectAsmParser &parser) const {
+mlir::Type equeue::EQueueDialect::parseType(DialectAsmParser &parser) const {
   Location loc = parser.getEncodedSourceLoc(parser.getNameLoc());
 
   // All types start with an identifier that we switch on.
@@ -107,7 +106,7 @@ mlir::Type xilinx::equeue::EQueueDialect::parseType(DialectAsmParser &parser) co
 }
 
 /// Print a EQueueContainerType
-void xilinx::equeue::EQueueDialect::printType(mlir::Type type, DialectAsmPrinter &os) const {
+void equeue::EQueueDialect::printType(mlir::Type type, DialectAsmPrinter &os) const {
   if (auto ty = type.dyn_cast<EQueueContainerType>()){
   	os << "container<";
  		os.getStream() << ty.getValueType()<< ", " <<ty.getContainerType();
@@ -122,7 +121,7 @@ void xilinx::equeue::EQueueDialect::printType(mlir::Type type, DialectAsmPrinter
 
 
 
-xilinx::equeue::EQueueDialect::EQueueDialect(mlir::MLIRContext *context)
+equeue::EQueueDialect::EQueueDialect(mlir::MLIRContext *context)
     : Dialect(getDialectNamespace(), context) {
 	addTypes<EQueueSignalType, EQueueContainerType>();
   addOperations<
@@ -132,4 +131,3 @@ xilinx::equeue::EQueueDialect::EQueueDialect(mlir::MLIRContext *context)
 }
 
 }// namespace equeue
-}// namespace xilinx

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef XILINX_EQUEUESTRUCTS_H
-#define XILINX_EQUEUESTRUCTS_H
+#ifndef EQUEUESTRUCTS_H
+#define EQUEUESTRUCTS_H
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -26,7 +26,6 @@
 #include <initializer_list>
 #include <iostream>
 using namespace mlir;
-namespace xilinx {
 namespace equeue {
 // dma
 #define BURST_MODE true
@@ -283,6 +282,5 @@ struct SINK : public Memory {
 };
 
 } // namespace equeue
-} // namespace xilinx
 
-#endif // XILINX_EQUEUESTRUCTS_H
+#endif // EQUEUESTRUCTS_H

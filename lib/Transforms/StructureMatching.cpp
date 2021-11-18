@@ -42,8 +42,8 @@ void StructureMatchingPass::runOnFunction() {
     std::vector<std::vector<std::string>> structs_list;
     trancate(structs_list, structs_names);
 
-    xilinx::equeue::LaunchOp launchOp;
-    for(xilinx::equeue::LaunchOp op : f.getOps<xilinx::equeue::LaunchOp>()){
+    equeue::LaunchOp launchOp;
+    for(equeue::LaunchOp op : f.getOps<equeue::LaunchOp>()){
       launchOp = op;
       break;
     }

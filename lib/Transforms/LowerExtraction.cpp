@@ -59,7 +59,7 @@ struct SplatOpConversion : public OpRewritePattern<SplatOp> {
       ScopedContext scope(rewriter, op.getParentRegion()->getLoc());
       rewriter.setInsertionPointAfter(user);
       int i = 0;
-      auto comp_list = dyn_cast<xilinx::equeue::CreateCompOp>(user).getCompStrList();
+      auto comp_list = dyn_cast<equeue::CreateCompOp>(user).getCompStrList();
       for(; i < user->getNumOperands(); i++){
         if( user->getOperand(i)==op.getResult()){
           user->setOperand(i, one_comp);
@@ -115,7 +115,7 @@ struct ExtractOpConversion : public OpRewritePattern<ExtractElementOp> {
       if(!isa<ConstantIndexOp>(index.getDefiningOp())) return failure();
     }
     Value v = op.getOperand(0);
-    while(isa<xilinx::equeue::LaunchOp>(v.getDefiningOp())){
+    while(isa<equeue::LaunchOp>(v.getDefiningOp())){
       auto launch_op = v.getDefiningOp();
       int i = 1;
       for(; i < launch_op->getNumResults(); i++){
@@ -124,7 +124,7 @@ struct ExtractOpConversion : public OpRewritePattern<ExtractElementOp> {
       v = launch_op->getRegion(0).front().getTerminator()->getOperand(i-1);
     }
 
-    xilinx::equeue::GetCompOp extract_from = cast<xilinx::equeue::GetCompOp>(v.getDefiningOp());
+    equeue::GetCompOp extract_from = cast<equeue::GetCompOp>(v.getDefiningOp());
     std::string new_comp = extract_from.getName().str();
     for(Value index: op.getIndices()){
       new_comp += "_"+std::to_string(cast<ConstantIndexOp>(index.getDefiningOp()).getValue());
@@ -164,12 +164,12 @@ void LowerExtractionPass::runOnFunction() {
 
     
     ConversionTarget target(getContext());
-    target.addLegalDialect<xilinx::equeue::EQueueDialect>();
+    target.addLegalDialect<equeue::EQueueDialect>();
     if (failed(applyPartialConversion(getFunction(), target,  std::move(patterns)))){
       signalPassFailure();
     }
     auto f = getFunction();
-    f.walk([&](xilinx::equeue::LaunchOp op) {
+    f.walk([&](equeue::LaunchOp op) {
       llvm::SmallSet<unsigned, 6> indices;
       for(auto res: op.getResults()){
         if(res.use_empty()){

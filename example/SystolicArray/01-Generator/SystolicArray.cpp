@@ -8,7 +8,7 @@ using namespace mlir::edsc::intrinsics;
 using namespace std;
 
 
-void MLIRGenImpl::scaleSimGenerator(){
+void MLIRGenImpl::systolicArrayGenerator(){
   // output feature map
   int E_h = (layer_config.ifmap_height - layer_config.filter_height + layer_config.stride) / layer_config.stride;
   int E_w = (layer_config.ifmap_width - layer_config.filter_width + layer_config.stride) / layer_config.stride;
@@ -17,17 +17,10 @@ void MLIRGenImpl::scaleSimGenerator(){
   // ofmap px
   int px_ofmap = E_h * E_w * layer_config.num_filter;
   int e2 = E_h * E_w;
-  //accel_config.print();
-  //layer_config.print();
-  //return;
-
   
   
   theModule = mlir::ModuleOp::create(builder.getUnknownLoc());  
   auto f32Type = builder.getF32Type();
-  //auto ifmapType = MemRefType::get({layer_config.channel, layer_config.ifmap_height, layer_config.ifmap_width}, f32Type);
-  //auto filterType = MemRefType::get({layer_config.num_filter, layer_config.channel, layer_config.ifmap_width, layer_config.filter_width}, f32Type);
-  //auto ofmapType = MemRefType::get({layer_config.num_filter, E_h, E_w}, f32Type);
   auto f =
       makeFunction("graph", {}, {});
   theModule.push_back(f);
@@ -45,6 +38,7 @@ void MLIRGenImpl::scaleSimGenerator(){
       }
     }
   }
+  
   //lines, data size, register type, banks
   Value sram(create_mem(ArrayRef<int64_t>{ accel_config.ifmap_sram }, 32, "SRAM", 2*accel_config.array_height + 2*accel_config.array_width ) );
   Value dma_col;
@@ -281,9 +275,6 @@ void MLIRGenImpl::scaleSimGenerator(){
               }
               
 
-                  /*if(t>=r+c && t < r+c+num_v_fold*num_h_fold*px_per_conv){
-                    llvm::outs()<<t<<" :"<<r<<", "<<c<<"\n";
-                  }*/
               compute_signal = pe_res[0];
               ifmap_flight_line.push_back(pe_res[1]);//c
               filter_flight_line.push_back(pe_res[2]);//c
@@ -299,7 +290,6 @@ void MLIRGenImpl::scaleSimGenerator(){
             ofmap_flight.push_back(ofmap_flight_line);//r
           }
           await_op(ValueRange{prev_compute_signal});
-          //llvm::outs()<<"==========\n";
           start_compute_signal = start_op();
           //Value compute_signal, prev_compute_signal;
           for(int c = 0 ; c < col_this_fold; c++){//par_for
@@ -387,7 +377,6 @@ void MLIRGenImpl::scaleSimGenerator(){
                   [&](ValueRange ins){
                   ofmap = ins[0];
                   if(!ofmap.getType().isIndex()){
-                    //if(t > c + r  && t <= c + r + num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
                     if( t >= c + r && t+c+r<=num_v_fold*num_h_fold*px_per_conv+last_width+last_height){
                       if((t-c-r)%px_per_conv==0){
                         c0 = std_constant_float(llvm::APFloat(0.0f), f32Type);
@@ -410,12 +399,11 @@ void MLIRGenImpl::scaleSimGenerator(){
           }
           await_op(ValueRange{prev_compute_signal});
         }
-        //return_op(ValueRange{obuffer});
         return_op(ValueRange{});
     });
   }
 
-    // input stationary
+  // input stationary
   if(accel_config.dataflow==DataFlow::IS){
     int num_h_fold = 1;
     int max_parallel_conv = 1;
@@ -1057,12 +1045,10 @@ void MLIRGenImpl::scaleSimGenerator(){
         //return_op(ValueRange{obuffer});
         return_op(ValueRange{});
     });
-    //builder.create<ReturnOp>(f.getLoc(), llvm::makeArrayRef(res[1]));
     
   }
   await_op(ValueRange{res[0]});
   std_ret();
-  //return;
 
   /// ------ end ---------
   theModule.print(llvm::outs());

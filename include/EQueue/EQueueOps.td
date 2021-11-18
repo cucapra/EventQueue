@@ -40,7 +40,7 @@ def EQueue_CreateMemOpAttr : StrEnumAttr<"CreateMemOpAttr",
 			EQueue_MemDRAM,
 			EQueue_MemSINK
 		]>{
-			let cppNamespace = "xilinx::equeue";
+			let cppNamespace = "equeue";
 		
 		}
 //structure creation operations
@@ -100,7 +100,7 @@ def EQueue_CreateProcOpAttr : StrEnumAttr<"CreateProcOpAttr",
 			EQueue_ProcMicroPlate,
 			EQueue_ProcAIEngine
 		]>{
-			let cppNamespace = "xilinx::equeue";
+			let cppNamespace = "equeue";
 		}
 
 def EQueue_CreateProcOp : EQueue_Op<"create_proc", [StructureOpTrait]> {
@@ -133,7 +133,7 @@ def EQueue_ConnectionOpAttr : StrEnumAttr<"ConnectionOpAttr",
 			EQueue_Streaming,
 			EQueue_Window
 		]>{
-			let cppNamespace = "xilinx::equeue";
+			let cppNamespace = "equeue";
 		}
 
 

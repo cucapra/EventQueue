@@ -3,7 +3,7 @@ using namespace mlir;
 using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace mlir::edsc::ops;
-using namespace xilinx::equeue;
+using namespace equeue;
 
 
 void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
@@ -16,7 +16,7 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
         valueIds.insert({*arg_it, *arg_it});
         arg_it += 1;
       }
-    } else if( auto Op = llvm::dyn_cast<xilinx::equeue::LaunchOp>(pop) ) {
+    } else if( auto Op = llvm::dyn_cast<equeue::LaunchOp>(pop) ) {
       auto arg_it = block.args_begin();
       for ( Value operand : Op.getLaunchOperands() ){
         valueIds.insert({*arg_it, valueIds[operand]});
@@ -28,7 +28,7 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
     }
     for (Operation &operation : block) {
       //get_comp operation
-      if(auto Op = llvm::dyn_cast<xilinx::equeue::GetCompOp>(operation)){
+      if(auto Op = llvm::dyn_cast<equeue::GetCompOp>(operation)){
           Value create_comp = valueIds[Op.getCompHandler()];
           auto name = Op.getName().str();
           Value comp = comps_tree[create_comp][name];
@@ -39,13 +39,13 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
         std::string comp_string;
         unsigned offset = 0;
         Value comp;
-        if(auto Op = llvm::dyn_cast<xilinx::equeue::CreateCompOp>(operation)){
+        if(auto Op = llvm::dyn_cast<equeue::CreateCompOp>(operation)){
           comp_string = Op.getNames().str();
           comp = Op.getResult();
           
           std::map<std::string, Value> comps;
           comps_tree.insert(std::make_pair(comp, comps));
-        }else if(auto Op = llvm::dyn_cast<xilinx::equeue::AddCompOp>(operation)){
+        }else if(auto Op = llvm::dyn_cast<equeue::AddCompOp>(operation)){
           comp_string = Op.getNames().str();
           comp = valueIds[Op.getOperand(0)];
           offset=1;
@@ -63,9 +63,9 @@ void GenericStructure::buildIdMap(mlir::FuncOp &toplevel){
         for (Value result : operation.getResults()){
           valueIds.insert({result, result});
         }
-        if(isa<mlir::scf::ForOp>(operation)||isa<xilinx::equeue::LaunchOp>(operation)) {
+        if(isa<mlir::scf::ForOp>(operation)||isa<equeue::LaunchOp>(operation)) {
           int i = 0;
-          if(isa<xilinx::equeue::LaunchOp>(operation)) i = 1;
+          if(isa<equeue::LaunchOp>(operation)) i = 1;
           auto yieldOp = operation.getRegion(0).front().getTerminator();
           for(auto yieldRes: yieldOp->getOperands()){
 

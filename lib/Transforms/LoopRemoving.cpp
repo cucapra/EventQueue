@@ -55,7 +55,7 @@ using namespace mlir;
 using namespace mlir::edsc;
 using namespace mlir::edsc::intrinsics;
 using namespace mlir::edsc::ops;
-using namespace xilinx::equeue;
+using namespace equeue;
 
 
 static mlir::Operation* walkRegions(MutableArrayRef<Region> regions, Operation *op=nullptr, bool isAfter=true) {
@@ -98,7 +98,7 @@ namespace
             std::vector<mlir::AffineForOp> affineFors;
             MutableArrayRef<Region> regions = f.getRegion();
             SmallVector<Operation *, 6> bands;
-            for (xilinx::equeue::LaunchOp launchop: f.getOps<xilinx::equeue::LaunchOp>()){
+            for (equeue::LaunchOp launchop: f.getOps<equeue::LaunchOp>()){
               for (Operation &op : launchop.getOps()) {
                 if (isa<mlir::AffineForOp>(&op)){
                     bands.push_back(&op);
@@ -214,7 +214,7 @@ namespace
         // patterns.insert<ForOpConversion>(&getContext());
     
         // ConversionTarget target(getContext());
-        // target.addLegalDialect<xilinx::equeue::EQueueDialect, StandardOpsDialect>();
+        // target.addLegalDialect<equeue::EQueueDialect, StandardOpsDialect>();
 
         // if (failed(applyPartialConversion(f, target, patterns)))
         //     signalPassFailure();

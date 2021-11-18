@@ -9,7 +9,7 @@ ValueRange LaunchOpBuilder(Value start, Value device,
 
   // Create the actual loop and call the body builder, if provided, after
   // updating the scoped context.
-  return builder.create<xilinx::equeue::LaunchOp>(loc, start, device, operands, 
+  return builder.create<equeue::LaunchOp>(loc, start, device, operands, 
     [&](OpBuilder &nestedBuilder, Location nestedLoc, ValueRange deviceControl) {
       if (bodyBuilder) {
         ScopedContext nestedContext(nestedBuilder, nestedLoc);
