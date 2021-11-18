@@ -76,5 +76,5 @@ Below is the visualization of running `test/EQueue/gpu.mlir`
 
 ### Contact
 
-I am [Zhijing](https://tissue3.github.io/) at Cornell University. This work is my Xilinx internship project. If getting to any trouble, you can contact me at zl679@cornell.edu
+I am [Zhijing](https://tissue3.github.io/) at Cornell University. This project is originally my Xilinx internship project. I extend after the internship and now it is accepted by HPCA 2022. I will put the reference later. If getting to any trouble, you can contact me at zl679@cornell.edu
 
