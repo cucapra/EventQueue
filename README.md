@@ -35,6 +35,8 @@ In the lowering pipeline, equeue dialect is at the same level as [gpu dialect](h
 
 #### Quick Start
 
+You may want to check on [Examples](example) on the convolution and the finite impulse response.
+
 After `git clone` and `cd` the repo, 
 
 ```shell
