@@ -50,10 +50,9 @@ For linalg dialect, the control flow is simply a few lines (pseudo code).
 
 ```c#
 done = equeue.launch(...) in (start, accel){
-    linalg.generic {args_in = 2, args_out = 1, 
-                    indexing_maps = [#map1, #map2, #map3], 
-                    iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "parallel", "parallel"]} 
-    				ifmap, weight, ofmap {		
+    linalg.generic {args_in = 2, args_out = 1, indexing_maps = [#map1, #map2, #map3], 
+      iterator_types = ["parallel", "parallel", "parallel", "parallel", "parallel", "parallel", "parallel"]} 
+      ifmap, weight, ofmap {		
        ofmap += weight*ofmap
        %14 = std.addf(arg3, %arg1, %arg2) {op_name = "mac"} : (f32, f32, f32) -> f32
        linalg.yield ofmap
