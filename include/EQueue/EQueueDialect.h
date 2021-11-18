@@ -6,13 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef XILINX_EQUEUEDIALECT_H
-#define XILINX_EQUEUEDIALECT_H
+#ifndef EQUEUEDIALECT_H
+#define EQUEUEDIALECT_H
 
 #include "mlir/IR/Dialect.h"
 #include "EQueueTraits.h"
 using namespace mlir;
-namespace xilinx {
 namespace equeue {
 
 // The Dialect
@@ -100,6 +99,5 @@ namespace {
 }
 
 } // namespace equeue
-} // namespace xilinx
 
-#endif // XILINX_EQUEUEDIALECT_H
+#endif // EQUEUEDIALECT_H

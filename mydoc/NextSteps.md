@@ -2,6 +2,98 @@
 
 This is to log my random thoughts on future steps...
 
+#### Nov 3th
+
+- lower to equeue dialect:
+  - scf.parallel => unrolling & **introduce hardware** control_and(), equeue.await()
+  - scf.for => unrolling
+- It might be redundant to have signals if everyting is expressable in parallel & sequential for, but unrolling everything help us get rid of if else and makes simulator simple?
+  - std.load => equeue.load
+  
+- scf.parallel => equeue dialect
+
+  - launch in accel { generic (E, F, H, W) (parallel, parallel, parallel, parallel) }
+
+  - launch in accel {generic (E, F, H/Ah, W/(Aw*reg_size), Ah, Aw, reg_size) (reduction, reduction, reduction, parallel, parallel, reduction) }
+
+  - launch in accel { for E, F, H/Ah, W/(Aw*reg_size); **parallel_for Ah, Aw ; launch in pe { generic reg_size }** } 
+
+    - Parallel is not possible without hardware's help
+
+    - ```mlir
+      ibuffer = load ibuffers(ah, aw) memref<structure> 
+      ibuffer = load ibuffers(ah, aw) memref<structure> 
+      ibuffer_next = load ibuffers(ah, aw+1) memref<structure>
+      ifmap = equeue.load(ibuffer)
+      ifmap = equeue.store(ibuffer)
+      equeue.launch(signal, pe_core, ifmap){
+      	generic reg_size //conv1d
+      }
+      ```
+
+  - Memory behavior e.g systolic array, weight stationary
+
+    - Sounds like a big jump here
+
+
+
+#### Oct 29th
+
+Three directions we can go (interest level goes along with appearance order):
+
+- Linalg/Loop to equeue dialect
+  - Make specific compiler that targets systolic array first and then...
+  - We might be able to come up with user annotations
+
+- Generate fast simulation
+  - Comparing among different dataflow doesn't work
+  - But inside the same dataflow, we can try different buffer size 
+    - if the allocation is valid
+    - which allocation works best
+
+- Verification
+  - Functional correctness check
+
+#### Oct 28th
+
+Some thoughts/confusions on high level abstraction
+
+- Modify simulator
+
+  - *ModelOp()* determines the whole execution time all at once? 
+    - No aliasing for input argument, might want to add it
+  - What if generic inside generic? But I don't see any example so that's also an issue that I don't know how to do generic inside generic (might not work since generic is simply designed for linear algebra). 
+    - We therefore might need generic to generic pass  e.g. lowering from 3d convolution to 2d convolution.
+
+- Whether to include hardware details in linalg dialect
+
+  - That also affect modeling execution time (parallel/sequential).
+
+    - Need to create new operations. 
+
+    - ```mlir
+      %generic_ssa = generic(...){...} : (...) -> memref<...>
+      equeue.apply(%hardware, %generic_ssa) 
+      ```
+
+    -  Or modify doc in linalg.generic [attributes](https://mlir.llvm.org/docs/Dialects/Linalg/#attributes-3)?
+
+  - Even with hardware information (we might need new dialect), it is still hard to imagine how to model systolic array at high level. We might need to say something like "this generic region is applied on a systolic array of with balabala size". 
+
+    - One concern on this is will the lowering be very specific? e.g. a compiler pass is only usable for matching a specific systolic array with specific dataflow. Maybe it can be left to hardware designer to implement this? 
+
+- Lowering from linalg to loops requires modification on signals
+
+  - May lower to loops (with existing passes e.g. [-convert-linalg-to-affine-loops](https://mlir.llvm.org/docs/Passes/#-convert-linalg-to-affine-loops-lower-the-operations-from-the-linalg-dialect-into-affine-loops), [-convert-linalg-to-loops](https://mlir.llvm.org/docs/Passes/#-convert-linalg-to-loops-lower-the-operations-from-the-linalg-dialect-into-loops) etc). Then add a pass to add signals at each loop.
+  - One problem is I am not sure how to determine parallel loop and sequential loop during lowering. 
+    - Simple heuristic lowering requires huge amount of analysis. The lowering itself forms a problem.
+    - Maybe a simple hardcoded lowering pass first? (As a case study?) 
+    - Does it hurt the generality of the lowering? Ideally, even with a simple lowering, we want it to be general and effective, i.e. does some analysis and result won't be very bad compared to human optimized results.
+
+- High level abstraction is a nice property but hard to model
+  - Again, what's the selling point? 
+  - How to experimentally prove the selling point?
+=======
 #### Sep 17th
 
 - **Container Recomposition Issue**

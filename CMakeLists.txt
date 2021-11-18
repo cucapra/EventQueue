@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
+
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
   set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
@@ -48,3 +49,4 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(test)
 add_subdirectory(equeue-opt)
+add_subdirectory(example)

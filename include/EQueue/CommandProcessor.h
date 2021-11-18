@@ -20,14 +20,17 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-
+#include <assert.h>
 #include <ostream>
+#include <string>
+#include <map>
 
-namespace acdc {
+
+typedef std::pair<mlir::Value, llvm::ArrayRef<int>> Value_t;
 
 class CommandProcessor {
-
 public:
     CommandProcessor(std::ostream &trace_stream) :
       traceStream(trace_stream), verbose(true)
@@ -47,7 +50,8 @@ struct OpEntry{
   mlir::Operation *op;
 
   uint64_t tid;
-  llvm::SmallVector<uint64_t, 16> mem_tids;
+  std::vector<uint64_t> mem_tids;
+  std::map<uint64_t, uint64_t> connection_tids;
 
   uint64_t start_time;
   uint64_t end_time;
@@ -60,9 +64,10 @@ struct OpEntry{
   OpEntry() : op(nullptr), tid(0), start_time(0), end_time(0), queue_ready_time(0) {}
 
 };
-#define EVENT_QUEUE_SIZE 2
+#define EVENT_QUEUE_SIZE 20000
 struct LauncherTable {
   bool host = false;
+  std::string name = "";
   OpEntry op_entry;
   
   mlir::Block *block;
@@ -156,4 +161,3 @@ public:
 };
 
 
-}

@@ -1,7 +1,7 @@
 # Event Queue Dialect
 Event queue (Equeue) dialect is an MLIR Dialect that models concurrent devices in terms of control and structure.
 
- 
+
 ### Motivation
 
 The main motivation of the event queue dialect is to efficiently estimate performance of programs running on heterogenous accelerators. The dialect is designed to bridge the gap between low-level hardware specific dialects and high-level dialects with little hardware specific information, thus facilitating custom lowering among different design choices. In particular, the EventQueue dialect supports modeling memory size constraints, bandwidth constraints, and processing time across a large number of heterogenous processors with distributed event-based control.
@@ -19,7 +19,7 @@ Check [further documentation](mydoc/) to see how the goals are achieved.
 
 ### EQueue Dialect in MLIR Lowering Pipeline
 
-![lowering_pipeline](/mydoc/fig/lowering_pipeline.png)
+![lowering_pipeline](mydoc/fig/lowering_pipeline.png)
 
 Event queue dialect is designed to do performance analysis.
 
@@ -34,6 +34,8 @@ In the lowering pipeline, equeue dialect is at the same level as [gpu dialect](h
 ### How to Use
 
 #### Quick Start
+
+You may want to check on [Examples](example) on the convolution and the finite impulse response.
 
 After `git clone` and `cd` the repo, 
 
@@ -76,5 +78,5 @@ Below is the visualization of running `test/EQueue/gpu.mlir`
 
 ### Contact
 
-I am [Zhijing](https://tissue3.github.io/) at Cornell University. This work is my Xilinx internship project. If getting to any trouble, you can contact me at zl679@cornell.edu
+I am [Zhijing](https://tissue3.github.io/) at Cornell University. This project is originally my Xilinx internship project. I extend after the internship and now it is accepted by HPCA 2022. I will put the reference later. If getting to any trouble, you can contact me at zl679@cornell.edu
 

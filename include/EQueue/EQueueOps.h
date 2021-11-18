@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef XILINX_EQUEUEOPS_H
-#define XILINX_EQUEUEOPS_H
+#ifndef EQUEUEOPS_H
+#define EQUEUEOPS_H
 
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -20,16 +20,16 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeSupport.h"
 #include "mlir/IR/Types.h"
+#include "llvm/Support/Debug.h"
 
 #include "EQueue/EQueueTraits.h"
+#include <assert.h>
 using namespace mlir;
-namespace xilinx {
 namespace equeue {
 
 #define GET_OP_CLASSES
 #include "EQueue/EQueueOps.h.inc"
 
 } // namespace equeue
-} // namespace xilinx
 
-#endif // XILINX_EQUEUEOPS_H
+#endif // EQUEUEOPS_H

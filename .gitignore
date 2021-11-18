@@ -2,3 +2,6 @@
 *.log
 build/
 *.swp
+test/out/*
+*.out
+*.mlir
