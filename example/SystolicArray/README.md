@@ -27,7 +27,7 @@ for n in N
   for eh in Eh, ew in Ew
     for c in C
       for fh in Fh, fw in Fw
-        ofmap[n, eh, ew] += ifmap[ew+fw-1, eh+fh-1,c ] x weight[n, fw, fh, c]
+        ofmap[n, eh, ew] += ifmap[ew+fw-1, eh+fh-1,c ] * weight[n, fw, fh, c]
 ```
 
 - For WS, on each cycle, ifmaps and ofmaps are passed to the neighbor PEs, while each weight is stationary
