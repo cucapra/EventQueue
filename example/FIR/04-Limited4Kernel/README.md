@@ -29,7 +29,7 @@ The implementation now uses 4 kernels and each kernel performs 4 sequential comp
 
 ```c#
 start = equeue.control_start()
-for k in 0..4: // 16 -> 4 kernels
+for k in 0 .. 4: // 16 -> 4 kernels
     // 1 -> 4 sequential mac4
     equeue.launch(...) in (start, ai_engine[k]){
         ifmap_tensor = equeue.read(sin, conn_in) // read from external
