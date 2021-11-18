@@ -104,10 +104,10 @@ bin/equeue-opt [affine].mlir \
 			   --merge-loop="indices=2,3,4" \
 			   --merge-loop="indices=0,1" \
 			   --loop-remove -cse \
-               --loop-tile="tile-sizes=[arr_height],[arr_width]" \
-               --simplify-affine-loop -simplify-affine-structures \
-	           --affine-loop-unroll="unroll-factor=1" \
-	           > [reorder].mlir
+			   --loop-tile="tile-sizes=[arr_height],[arr_width]" \
+			   --simplify-affine-loop -simplify-affine-structures \
+			   --affine-loop-unroll="unroll-factor=1" \
+			   > [reorder].mlir
 ```
 
 - For IS, each ifmap is stationary for *N* weights; 
@@ -118,10 +118,10 @@ bin/equeue-opt [affine].mlir \
 			   --merge-loop="indices=1,2,3" \
 			   --merge-loop="indices=4,5" \
 			   --loop-remove -cse \
-               --loop-tile="tile-sizes=[arr_height],[arr_width]" \
-               --simplify-affine-loop -simplify-affine-structures \
-	           --affine-loop-unroll="unroll-factor=1" \
-	           > [reorder].mlir
+			   --loop-tile="tile-sizes=[arr_height],[arr_width]" \
+  			   --simplify-affine-loop -simplify-affine-structures \
+			   --affine-loop-unroll="unroll-factor=1" \
+	           	   > [reorder].mlir
 ```
 
 - For OS, each ofmap is stationary until accumulated with _Fh * Fw * C_ ifmaps and weights.
@@ -131,10 +131,10 @@ bin/equeue-opt [affine].mlir \
 			   --merge-loop="indices=3,4" \
 			   --merge-loop="indices=0,1,2" \
 			   --loop-remove -cse \
-               --loop-tile="tile-sizes=[arr_height],[arr_width]" \
-               --simplify-affine-loop -simplify-affine-structures \
-	           --affine-loop-unroll="unroll-factor=1" \
-	           > [reorder].mlir
+		           --loop-tile="tile-sizes=[arr_height],[arr_width]" \
+			   --simplify-affine-loop -simplify-affine-structures \
+			   --affine-loop-unroll="unroll-factor=1" \
+			   > [reorder].mlir
 ```
 
 #### Affine to Buffer Reassign
@@ -147,12 +147,12 @@ Here we apply the `--allocate-buffer` and `--reassign-buffer` passes to replace 
 bin/equeue-opt [reorder].mlir \
 				--allocate-mem="structs-names=pe_array@mem,pe_array@mem,pe_array@mem \
 				indices=0,0,0 mem-names=pe_ibuffer,pe_wbuffer,pe_obuffer sizes=1,1,1" \
-			    > [allocate].mlir
+				> [allocate].mlir
 bin/equeue-opt [allocate].mlir \
 				--reassign-buffer="old-buffer=ibuffer,wbuffer,obuffer \
 				new-buffer=pe_array@pe_ibuffer,pe_array@pe_wbuffer,pe_array@pe_obuffer \
-          		indices=11,11,11" \
-			    > [reassign].mlir
+          			indices=11,11,11" \
+			        > [reassign].mlir
 ```
 
 #### Buffer Reassign to Systolic Array
@@ -176,14 +176,14 @@ bin/equeue-opt [reassign].mlir \
 				--mem-copy="src=pe_array@pe_wbuffer dest=pe_array[+1][:]@pe_wbuffer \
 				dma=pe_array@dma indices=10 insertions=0" \
 				--simplify-affine-structures \
-			    > [stationary-weight].mlir
+			        > [stationary-weight].mlir
 # Implement the systolic communication for ifmap 
 bin/equeue-opt [stationary-weight].mlir \
 				--match-equeue-structure="indices=13 structs-names=pe_array@proc" 
 				--mem-copy="src=pe_array@pe_ibuffer dest=pe_array[:][+1]@pe_ibuffer \
 				dma=pe_array@proc indices=13 insertions=0" \
 				--merge-memcpy-launch="launch=0 memcpy=1" \
-			    > [systolic-ifmap].mlir
+			        > [systolic-ifmap].mlir
 # Implement the systolic communication for ofmap 
 bin/equeue-opt [systolic-ifmap].mlir \
 				--split-launch="indices=0 at=13" \
@@ -214,8 +214,8 @@ bin/equeue-opt [stationary-ifmap].mlir \
                 > [weight-ifmap].mlir
 # Implement the systolic communication for ofmap 
 bin/equeue-opt [systolic-ifmap].mlir \
-				--split-launch="indices=0 at=12" \
-				--reassign-buffer="old-buffer=pe_array@pe_obuffer \
+		--split-launch="indices=0 at=12" \
+		--reassign-buffer="old-buffer=pe_array@pe_obuffer \
             	new-buffer=pe_array[+1][:]@pe_obuffer indices=13" \
             	--cse \
 			    > [systolic-ofmap].mlir
