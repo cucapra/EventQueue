@@ -22,16 +22,13 @@ Below is the illustration for the data movement of each dataflow on a systolic a
 | ![dataflow_ws](../../mydoc/fig/systolic_array/dataflow_ws.png) | ![dataflow_is](../../mydoc/fig/systolic_array/dataflow_is.png) | ![dataflow_os](../../mydoc/fig/systolic_array/dataflow_ots.png) |
 
 Assuming we convolve *N* weights of size *Fh\*Fw* with an ofmap of size *Ew\*Eh* with *C* channels, so that a convolution can be represented as 
-
-> for n in N
->
-> ​	for eh in Eh, ew in Ew
->
-> ​		for c in C
->
-> ​			for fh in Fh, fw in Fw
->
-> ​				ofmap[n, eh, ew] += ifmap[ew+fw-1, eh+fh-1,c ] x weight[n, fw, fh, c]
+```
+for n in N
+  for eh in Eh, ew in Ew
+    for c in C
+      for fh in Fh, fw in Fw
+        ofmap[n, eh, ew] += ifmap[ew+fw-1, eh+fh-1,c ] x weight[n, fw, fh, c]
+```
 
 - For WS, on each cycle, ifmaps and ofmaps are passed to the neighbor PEs, while each weight is stationary
   until  *Ew\*Eh* ifmaps convolve with it;
