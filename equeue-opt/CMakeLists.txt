@@ -6,8 +6,12 @@ set(LIBS
         MLIROptLib
         MLIREQueue
         EQueueEDSC
-        SystolicArray
-        FIR
+        SystolicArrayGenerator
+        SystolicArrayCompilation
+        FIR16
+        FIR4
+        FIR16Limited
+        FIRSingle
         )
 add_llvm_executable(equeue-opt equeue-opt.cpp)
 llvm_update_compile_flags(equeue-opt)

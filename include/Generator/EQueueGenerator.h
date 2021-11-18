@@ -1,8 +1,9 @@
-#ifndef EQUEUEDIALECT_GENERATOR_H
-#define EQUEUEDIALECT_GENERATOR_H
+#ifndef EQUEUE_GENERATOR_H
+#define EQUEUE_GENERATOR_H
 
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include "EQueue/EQueueDialect.h"
 #include "EQueue/EQueueOps.h"
 #include "EQueue/EQueueTraits.h"
@@ -31,20 +32,9 @@
 
 
 #include "llvm/ADT/StringRef.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/ToolOutputFile.h"
 #include <math.h> 
 
-static llvm::cl::opt<std::string>
-    configFilename("config", llvm::cl::desc("Config filename"),
-                   llvm::cl::value_desc("input configuration filename"), llvm::cl::init(""));
 
 struct layerConfig {
   int channel = 6;
@@ -100,21 +90,33 @@ struct accelConfig {
 class MLIRGenImpl {
 public:
   MLIRGenImpl(mlir::MLIRContext &context) : builder(&context) {}
-  void equeueGenerator(std::string &gen){
-    if (gen ==  "systolicArrayGenerator"){
-	      if (configFilename!=""){ 
-	        loadConfiguration(configFilename);
-	      }
+  void equeueGenerator(std::string &gen, std::string &config){
+    // Load configuration
+    if (config!=""){ 
+      loadConfiguration(config);
+    }
+    
+    // Generate mlir syntax
+    if (gen ==  "systolicArray"){
         systolicArrayGenerator();
-    } else if (gen == "firSingleKernel"){
+    } else if (gen == "linalg"){
+        linalgGenerator();
+    } else if (gen == "firSingle"){
         firSingleKernel();
+    } else if (gen == "fir16"){
+        fir16Kernel();
+    } else if (gen == "fir16Limit"){
+        fir16LimitedKernel();
+    } else if (gen == "firMulti"){
+        firMultiKernel();
     } else{
         llvm::errs()<<"No such implementation!\n";
     }
   }
     
   void loadConfiguration(std::string &config_fn){
-    std::ifstream config_fp(config_fn);
+    std::ifstream config_fp;
+    config_fp.open(config_fn);
     if ( config_fp ) {
         std::stringstream instream;
         instream << config_fp.rdbuf();
@@ -149,14 +151,13 @@ public:
               llvm_unreachable("invalid for dataflow");
             }
           }else if(instr=="[Network]"){
-
+            instream>>instr;
             break;
           }else{
             llvm_unreachable("invalid input configuartion");
           }
         }
-        
-
+       
         instream>>number;
         layer_config.ifmap_height = number;//7
         instream>>number;
@@ -172,17 +173,14 @@ public:
         instream>>number;
         layer_config.stride = number;
       
-        config_fp.close();
     } else {
-      llvm::errs() << "Cannot find configration file "<<configFilename.c_str()<<"!\n";
+      llvm::errs() << "Cannot find configration file "<<config_fn<<"!\n";
     }
     
+    config_fp.close();
   }
   
-  void simpleGenerator();
-  void linalgGenerator1();
-  void linalgGenerator2();
-  void linalgGenerator3();
+  void linalgGenerator();
   void systolicArrayGenerator();
   void firSingleKernel();
   void fir16Kernel();

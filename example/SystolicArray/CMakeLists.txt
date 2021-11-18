@@ -1,15 +1,3 @@
-add_mlir_dialect_library(SystolicArray
-        SystolicArray.cpp
-        EQueueGenerator.cpp
-        ADDITIONAL_HEADER_DIRS
-        ${PROJECT_SOURCE_DIR}/include/EQueue
-        ${PROJECT_SOURCE_DIR}/include/EDSC
-        ${PROJECT_SOURCE_DIR}/include/Generator
+add_subdirectory(01-Generator)
+add_subdirectory(02-Compilation)
 
-        DEPENDS
-        MLIREQueueOpsIncGen
-        EQueueEDSC
-        
-				LINK_LIBS PUBLIC
-				MLIRIR
-	)
