@@ -31,7 +31,7 @@ one mul4 / mac4 operation. We show the simplified control flow:
 
 ```c#
 start = equeue.control_start()
-for k in 0..16:
+for k in 0 .. 16:
     done[k] = equeue.launch(...) in (start, ai_engine[k]){
         ifmap_tensor = equeue.read(sin)
         equeue.write(ifmap_tensor, ifmap)
