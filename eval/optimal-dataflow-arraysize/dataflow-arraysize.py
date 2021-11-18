@@ -74,7 +74,7 @@ class scale:
         data_flow_list = ['ws','is','os']
         data_flow_dir = {'ws':0,'is':1,'os':2}
         
-        conv_hw_list = [2,4,8,16]
+        conv_ehw_list = [2,4,8,16]
         conv_fhw_list = [1,2,4]
         conv_c_list = [1,2,4]
         conv_filter_list = [1,2,4,8,16,32]#num_filter
@@ -83,13 +83,13 @@ class scale:
         start_from = [2,64,108,'ws',1,1,1,1,1]
         end_at = [32,64,108,'ws',16,16,16,16,16]
         '''
-        conv_hw_list = [4,8,16,32]
+        conv_ehw_list = [4,8,16,32]
         conv_fhw_list = [1,2,4,8]
         conv_c_list = [1,2,4,8]
         conv_filter_list = [2,4,8,16]#num_filter
         conv_stride_list = [1]
         '''
-        configs = [arr_h_list, arr_hw_list, sram_sz_list, data_flow_list, conv_hw_list, conv_fhw_list, conv_c_list, conv_filter_list, conv_stride_list]
+        configs = [arr_h_list, arr_hw_list, sram_sz_list, data_flow_list, conv_ehw_list, conv_fhw_list, conv_c_list, conv_filter_list, conv_stride_list]
         exp_settings = list(itertools.product(*configs))
         exp_settings = list(list(es) for es in exp_settings)
         config_dir = os.path.join(self.storage_dir, "configs")
@@ -105,11 +105,12 @@ class scale:
         self.csv_path = os.path.join(self.eval_dir, "summary.csv")
         
         if not os.path.exists(self.csv_path):
-          os.system("echo 'identifier,exec_time,cycles,sram_read_total,sram_write_total,reg_read_total,reg_write_total,sram_read,sram_write,reg_read,reg_write'>" + self.csv_path)
+          os.system("echo 'identifier,exec_time,cycles,sram_read_total,sram_write_total,reg_read_total,reg_write_total,sram_read,sram_write,reg_read,reg_write,"
+          +"sram_max_read,sram_max_write,reg_max_read,reg_max_write,sram_n_max_read,sram_n_max_write,reg_n_max_read,reg_n_max_write' >" + self.csv_path)
 
         for i, es in enumerate(exp_settings):
           if es[4]<es[5]: continue
-          if es[0] >=  (es[5]*es[5]*es[6]) and math.floor(es[0]/ (es[5]*es[5]*es[6]) ) > 1: # arr_h/px_per_conv = max_parallel_window > 1
+          if es[3]!='os' and es[0] >=  (es[5]*es[5]*es[6]) and math.floor(es[0]/ (es[5]*es[5]*es[6]) ) > 1: # arr_h/px_per_conv = max_parallel_window > 1
             print(es, "max_parllel_window > 1, continue")
             continue
           '''
@@ -127,6 +128,7 @@ class scale:
             break
           '''
           es[1]=int(es[1]/es[0])
+          es[4]=es[4]+es[5]-1
           print("running ",es)
           self.run_once(i, es)
             

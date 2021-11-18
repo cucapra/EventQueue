@@ -23,10 +23,10 @@ arr_settings = list(list(es) for es in arr_settings)
 for es in arr_settings:
   es[1] = int(es[1]/es[0])
   
-conv_hw_list = [4,8,16]
+conv_hw_list = [2,4,8,16,32]
 conv_fhw_list = [1,2,4]
 conv_c_list = [1,2,4]
-conv_filter_list = [16]#[1,2,4,8,16]#num_filter
+conv_filter_list = [1]#[1,2,4,8,16]#num_filter
 conv_stride_list = [1]
 network_configs = [conv_hw_list, conv_fhw_list, conv_c_list, conv_filter_list, conv_stride_list]
 network_settings = list(itertools.product(*network_configs))

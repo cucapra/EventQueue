@@ -29,7 +29,7 @@ exp_settings = list(list(es) for es in exp_settings)
 for es in exp_settings:
   es[1] = int(es[1]/es[0])
   
-csv_name = os.path.join("/home/qino/Desktop/event_queue/eval/optimal-dataflow-arraysize", "summary.csv")
+csv_name = os.path.join("/home/qino/Desktop/event_queue/eval/optimal-dataflow-arraysize", "summary2.csv")
 data = pd.read_csv(csv_name)
 for dataflow in data_flow_list:
   fig, ax = plt.subplots()

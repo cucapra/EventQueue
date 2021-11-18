@@ -1,0 +1,10 @@
+[Accelerator]
+ArrayHeight: 4
+ArrayWidth: 4
+IfmapSramSz: 108
+FilterSramSz: 108
+OfmapSramSz: 108
+Dataflow: os
+
+[Network]
+2 2 2 2 3 2 1 

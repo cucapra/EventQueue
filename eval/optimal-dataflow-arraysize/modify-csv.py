@@ -1,0 +1,12 @@
+f = open("summary.csv", "r")
+f2 = open("summary3.csv", 'w')
+line1 = f.readline()
+f2.write(line1)
+line1 = f.readline().strip('\n')
+while line1 :
+  strip_line1 = line1.split(" ")
+  line1 = ' '.join(strip_line1[:len(strip_line1)-2])
+  line2 = f.readline()
+  print(line1+' '+line2)
+  f2.write(line1+' '+line2)
+  line1 = f.readline().strip('\n')

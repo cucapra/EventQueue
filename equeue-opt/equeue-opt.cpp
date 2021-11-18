@@ -42,10 +42,10 @@
 #include "EQueue/CommandProcessor.h"
 #include "Generator/EQueueGenerator.h"
 
-static llvm::cl::opt<int> generateInputFile(
+static llvm::cl::opt<std::string> generate(
     "generate",
     llvm::cl::desc("generate the input file"),
-    llvm::cl::init(0));
+    llvm::cl::init(""));
 
 static llvm::cl::opt<bool> simulateInputFile(
     "simulate",
@@ -55,16 +55,26 @@ static llvm::cl::opt<bool> simulateInputFile(
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
                                                 llvm::cl::desc("<input file>"),
                                                 llvm::cl::init("-"));
+
 static llvm::cl::opt<std::string>
     configFilename("config", llvm::cl::desc("Config filename"),
                    llvm::cl::value_desc("input configuration filename"), llvm::cl::init(""));
+                   
 static llvm::cl::opt<std::string>
     jsonFilename("json", llvm::cl::desc("Json filename"),
-                   llvm::cl::value_desc("json filename for file to log tracing (trace event format)"), llvm::cl::init("../test/out/out.json"));
+                   llvm::cl::value_desc("json filename for file to log "
+                   "tracing (trace event format)"), 
+                   llvm::cl::init("../test/out/out.json"));
+
 static llvm::cl::opt<std::string>
     outputFilename("o", llvm::cl::desc("Output filename"),
                    llvm::cl::value_desc("filename"), llvm::cl::init("-"));
-
+                   
+static llvm::cl::opt<bool> colName(
+    "show-col-name",
+    llvm::cl::desc("Show column name of output summary"),
+    llvm::cl::init(false));
+    
 static llvm::cl::opt<bool> splitInputFile(
     "split-input-file",
     llvm::cl::desc("Split the input file into pieces and process each "
@@ -168,24 +178,10 @@ int main(int argc, char **argv) {
     exit(1);
   }
   
-  if(generateInputFile>=1){
+  if(generate!=""){
     MLIRGenImpl generator(context);	  
+    generator.equeueGenerator(generate, configFilename);
     
-    std::string config_fn;
-	  if (configFilename!=""){ config_fn = configFilename.c_str();
-	    std::ifstream config_fp(config_fn);
-	    if ( config_fp ) {
-          std::stringstream configBuffer;
-          configBuffer << config_fp.rdbuf();
-          generator.loadConfiguration(configBuffer);
-          config_fp.close();
-      } else {
-        llvm::errs() << "cannot find configration file"<<configFilename.c_str()<<"!\n";
-      }
-    }
-    if(generateInputFile==1) generator.scaleSimGenerator();
-    if(generateInputFile==2) generator.linalgGenerator3();
-    if(generateInputFile==3) generator.firMultiKernel();
   }
   else{
     // Set up the input file.
@@ -194,9 +190,6 @@ int main(int argc, char **argv) {
       llvm::errs() << errorMessage << "\n";
       return 1;
     }
-    //output->os()//llvm::nulls()
-    
-
 	  
     
     if(simulateInputFile){    
@@ -211,6 +204,12 @@ int main(int argc, char **argv) {
 	    std::ofstream json_fp(json_fn);
 	    std::stringstream traceStream;
 	    CommandProcessor proc(traceStream);
+      if(colName){
+        llvm::outs()<<"exec_time,cycles,sram_read_total,sram_write_total,"
+          <<"reg_read_total,reg_write_total,sram_read,sram_write,reg_read,reg_write,"
+          <<"sram_max_read,sram_max_write,reg_max_read,reg_max_write,sram_n_max_read,"
+          <<"sram_n_max_write,reg_n_max_read,reg_n_max_write\n"; 
+	    }
 	    proc.run(module.get());
       json_fp << traceStream.str();
     }else{
