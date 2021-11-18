@@ -21,7 +21,7 @@ A finite impulse response (FIR) filter is a common signal processing primitive t
 An FIR operation filters and accumulates on a sliding-window. Given a series of discrete input samples x and N coefficients
 c, the output samples y are calculated as:
 
-<img src="../../mydoc/fig/fir/FIR_Equation.jpg" style="zoom:33%;" />
+<img src="../../mydoc/fig/fir/FIR_Equation.jpg" style="zoom:10%;" />
 
 We compare our simulator’s reports to those from Xilinx’s own, hand-written, closed-source simulator to ground the results. The Xilinx FIR tutorial uses a filter with 32 complex, asymmetric coefficients and a digital series of length 512. Each value occupies 32 bits.
 
