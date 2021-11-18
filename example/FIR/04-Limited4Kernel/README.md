@@ -51,7 +51,7 @@ equeue.await()
 First use [generator](singleKernel) to generate a 4 kernel of limited bandwidth implementation.
 
 ```shell
-./bin/equeue-opt -generate=fir4 > [filename].mlir
+./bin/equeue-opt -generate=firMulti > [filename].mlir
 ```
 
 Next step is to simulate the generated MLIR file with
