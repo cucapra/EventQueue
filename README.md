@@ -43,7 +43,7 @@ After `git clone` and `cd` the repo,
 mkdir build
 cp *.sh build/
 cd build
-#change LLVM_DIR and MLIR_DIR in run.sh to your local directory
+#change LLVM_EXTERNAL_LIT and MLIR_DIR in run.sh to your local directory
 sh config; sh run.sh
 ./bin/equeue-opt ../test/Equeue/[path-to-input-file.mlir]
 ```
