@@ -32,6 +32,10 @@ In the lowering pipeline, equeue dialect is at the same level as [gpu dialect](h
 
 
 ### How to Use
+#### Dependency
+The dependency of this project is [MLIR](https://mlir.llvm.org/).
+Please follow its [quick start](https://mlir.llvm.org/getting_started/) to build MLIR executable.
+
 
 #### Quick Start
 
