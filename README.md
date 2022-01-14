@@ -32,14 +32,21 @@ In the lowering pipeline, equeue dialect is at the same level as [gpu dialect](h
 
 
 ### How to Use
+
 #### Dependency
-The dependency of this project is [MLIR](https://mlir.llvm.org/).
-Please follow its [quick start](https://mlir.llvm.org/getting_started/) to build MLIR executable.
+The dependency of this project is [MLIR](https://mlir.llvm.org/). 
+Because MLIR is project that frequently being updated. When I started the EQueue project, The latest stable version was [12-init](
+https://github.com/llvm/llvm-project/tree/llvmorg-12-init).
+One needs checkout to the right version.
+```
+git clone https://github.com/llvm/llvm-project.git
+git fetch --all --tags
+git checkout tags/llvmorg-12-init -b <your-branch-name>
+```
+and then follow MLIR [quick start](https://mlir.llvm.org/getting_started/) to build executable.
 
 
 #### Quick Start
-
-You may want to check on [Examples](example) on the convolution and the finite impulse response.
 
 After `git clone` and `cd` the repo, 
 
@@ -78,7 +85,9 @@ Below is the visualization of running `test/EQueue/gpu.mlir`
 
 ![visualization](/mydoc/fig/estimation_result.png)
 
+### Examples
 
+You may want to check on [Examples](example) on the convolution and the finite impulse response. Detailed explanation can be found in the example directory
 
 ### Contact
 
