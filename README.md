@@ -89,6 +89,10 @@ Below is the visualization of running `test/EQueue/gpu.mlir`
 
 You may want to check on [Examples](example) on the convolution and the finite impulse response. Detailed explanation can be found in the example directory
 
+### Paper and Citation
+
+The paper is accepted to HPCA 2022. We upload a [preprint](https://arxiv.org/abs/2202.00739) to Arxiv. 
+
 ### Contact
 
 I am [Zhijing](https://tissue3.github.io/) at Cornell University. This project is originally my Xilinx internship project. I extend after the internship and now it is accepted by HPCA 2022. I will put the reference later. If getting to any trouble, you can contact me at zl679@cornell.edu
